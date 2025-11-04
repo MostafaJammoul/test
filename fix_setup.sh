@@ -95,9 +95,36 @@ python manage.py migrate
 log_success "Migrations completed"
 
 # =============================================================================
-# 6. INITIALIZE PKI (CA)
+# 6. CREATE SYSTEM DIRECTORIES FOR PKI
 # =============================================================================
-log_info "Step 6: Checking PKI initialization..."
+log_info "Step 6: Creating system directories for PKI..."
+
+# Create /etc/jumpserver/certs/internal-ca with proper permissions
+if [ ! -d "/etc/jumpserver/certs/internal-ca" ]; then
+    log_info "Creating /etc/jumpserver/certs/internal-ca..."
+    sudo mkdir -p /etc/jumpserver/certs/internal-ca
+    sudo chown -R $USER:$USER /etc/jumpserver
+    sudo chmod -R 755 /etc/jumpserver
+    log_success "Created /etc/jumpserver/certs/internal-ca"
+else
+    log_success "/etc/jumpserver/certs/internal-ca already exists"
+fi
+
+# Create /etc/nginx/ssl with proper permissions
+if [ ! -d "/etc/nginx/ssl" ]; then
+    log_info "Creating /etc/nginx/ssl..."
+    sudo mkdir -p /etc/nginx/ssl
+    sudo chown -R $USER:$USER /etc/nginx/ssl
+    sudo chmod 755 /etc/nginx/ssl
+    log_success "Created /etc/nginx/ssl"
+else
+    log_success "/etc/nginx/ssl already exists"
+fi
+
+# =============================================================================
+# 7. INITIALIZE PKI (CA)
+# =============================================================================
+log_info "Step 7: Checking PKI initialization..."
 
 CA_EXISTS=$(python manage.py shell -c "from pki.models import CertificateAuthority; print('yes' if CertificateAuthority.objects.exists() else 'no')" 2>/dev/null || echo "no")
 
@@ -110,9 +137,9 @@ else
 fi
 
 # =============================================================================
-# 7. EXPORT CA CERTIFICATE FOR NGINX
+# 8. EXPORT CA CERTIFICATE FOR NGINX
 # =============================================================================
-log_info "Step 7: Exporting CA certificate for nginx..."
+log_info "Step 8: Exporting CA certificate for nginx..."
 
 cd ..
 python apps/manage.py export_ca_cert --output data/certs/mtls/internal-ca.crt --force
@@ -121,9 +148,9 @@ python apps/manage.py export_crl --output data/certs/mtls/internal-ca.crl --forc
 log_success "CA certificate exported"
 
 # =============================================================================
-# 8. GENERATE SERVER SSL CERTIFICATE
+# 9. GENERATE SERVER SSL CERTIFICATE
 # =============================================================================
-log_info "Step 8: Generating server SSL certificate..."
+log_info "Step 9: Generating server SSL certificate..."
 
 if [ ! -f "data/certs/mtls/server.crt" ]; then
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
@@ -140,9 +167,9 @@ else
 fi
 
 # =============================================================================
-# 9. LIST ALL USERS
+# 10. LIST ALL USERS
 # =============================================================================
-log_info "Step 9: Listing existing users..."
+log_info "Step 10: Listing existing users..."
 
 cd apps
 python manage.py shell << 'EOF'
@@ -159,9 +186,9 @@ EOF
 cd ..
 
 # =============================================================================
-# 10. ISSUE CERTIFICATE FOR FIRST SUPERUSER
+# 11. ISSUE CERTIFICATE FOR FIRST SUPERUSER
 # =============================================================================
-log_info "Step 10: Checking for user certificates..."
+log_info "Step 11: Checking for user certificates..."
 
 FIRST_USER=$(cd apps && python manage.py shell -c "from users.models import User; u = User.objects.filter(is_superuser=True).first(); print(u.username if u else '')" 2>/dev/null || echo "")
 
@@ -186,9 +213,9 @@ else
 fi
 
 # =============================================================================
-# 11. CHECK NGINX
+# 12. CHECK NGINX
 # =============================================================================
-log_info "Step 11: Checking nginx configuration..."
+log_info "Step 12: Checking nginx configuration..."
 
 if command -v nginx &> /dev/null; then
     log_success "nginx is installed"
@@ -298,19 +325,10 @@ else
 fi
 
 # =============================================================================
-# 12. SYNC BUILTIN ROLES
-# =============================================================================
-log_info "Step 12: Syncing builtin roles..."
-
-cd apps
-python manage.py sync_role
-cd ..
-
-log_success "Roles synced"
-
-# =============================================================================
 # 13. COLLECT STATIC FILES
 # =============================================================================
+# Note: Builtin roles (including blockchain roles) are automatically synced
+# during migrations, so no separate sync_role command is needed.
 log_info "Step 13: Collecting static files..."
 
 cd apps
