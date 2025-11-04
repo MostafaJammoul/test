@@ -1,0 +1,53 @@
+=========================================
+JumpServer Setup Diagnostic & Fix
+=========================================
+
+[0;34m[INFO][0m Step 1: Checking virtual environment...
+[0;32m[SUCCESS][0m Virtual environment activated
+[0;34m[INFO][0m Step 2: Checking Django installation...
+[0;32m[SUCCESS][0m Django is installed
+[0;34m[INFO][0m Step 3: Creating certificate directories...
+[0;32m[SUCCESS][0m Directories created
+[0;34m[INFO][0m Step 4: Checking database...
+[0;32m[SUCCESS][0m PostgreSQL connection OK
+[0;34m[INFO][0m Step 5: Running migrations...
+No changes detected in app 'pki'
+No changes detected in app 'blockchain'
+No changes detected
+/opt/truefypjs/venv/lib/python3.11/site-packages/httpsig/__init__.py:1: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import get_distribution, DistributionNotFound
+Operations to perform:
+  Apply all migrations: accounts, acls, admin, assets, audits, auth, authentication, blockchain, captcha, contenttypes, django_cas_ng, django_celery_beat, labels, notifications, ops, orgs, perms, pki, rbac, sessions, settings, terminal, tickets, users
+Running migrations:
+  No migrations to apply.
+
+After migration, update builtin role permissions
+  - Update builtin roles
+[0;32m[SUCCESS][0m Migrations completed
+[0;34m[INFO][0m Step 6: Checking PKI initialization...
+[1;33m[WARNING][0m CA not found! Initializing PKI...
+/opt/truefypjs/venv/lib/python3.11/site-packages/httpsig/__init__.py:1: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import get_distribution, DistributionNotFound
+2025-11-05 03:45:36 [DEBU] Start subscribe for expire orgs mapping from memory
+2025-11-05 03:45:36 [DEBU] Start subscribe for expire node assets id mapping from memory
+2025-11-05 03:45:36 [DEBU] Start subscribe vault change
+2025-11-05 03:45:36 [INFO] Start subscribe for stop job execution
+2025-11-05 03:45:36 [DEBU] Start subscribe setting change
+2025-11-05 03:45:36 [DEBU] Start subscribe for expire node assets id mapping from memory
+Creating Internal CA...
+Traceback (most recent call last):
+  File "/opt/truefypjs/apps/manage.py", line 27, in <module>
+    execute_from_command_line(sys.argv)
+  File "/opt/truefypjs/venv/lib/python3.11/site-packages/django/core/management/__init__.py", line 446, in execute_from_command_line
+    utility.execute()
+  File "/opt/truefypjs/venv/lib/python3.11/site-packages/django/core/management/__init__.py", line 440, in execute
+    self.fetch_command(subcommand).run_from_argv(self.argv)
+  File "/opt/truefypjs/venv/lib/python3.11/site-packages/django/core/management/base.py", line 402, in run_from_argv
+    self.execute(*args, **cmd_options)
+  File "/opt/truefypjs/venv/lib/python3.11/site-packages/django/core/management/base.py", line 448, in execute
+    output = self.handle(*args, **options)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/truefypjs/apps/pki/management/commands/init_pki.py", line 75, in handle
+    ca = ca_manager.create_ca(
+         ^^^^^^^^^^^^^^^^^^^^^
+TypeError: CAManager.create_ca() got an unexpected keyword argument 'validity_years'

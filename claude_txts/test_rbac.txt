@@ -1,0 +1,141 @@
+=========================================
+RBAC Testing
+=========================================
+
+1. Listing all users and their roles...
+
+/opt/truefypjs/venv/lib/python3.11/site-packages/httpsig/__init__.py:1: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import get_distribution, DistributionNotFound
+2025-11-05 03:46:14 [DEBU] Start subscribe for expire orgs mapping from memory
+2025-11-05 03:46:14 [DEBU] Start subscribe for expire node assets id mapping from memory
+2025-11-05 03:46:14 [DEBU] Start subscribe vault change
+2025-11-05 03:46:14 [INFO] Start subscribe for stop job execution
+2025-11-05 03:46:14 [DEBU] Start subscribe setting change
+2025-11-05 03:46:14 [DEBU] Start subscribe for expire node assets id mapping from memory
+=== All Users and Roles ===
+
+User: admin
+  Email: admin@example.com
+  Is superuser: True
+  System Roles:
+    - SystemAdmin (ID: 00000000-0000-0000-0000-000000000001)
+
+User: inv1
+  Email: inv1@example.com
+  Is superuser: False
+  System Roles:
+    - User (ID: 00000000-0000-0000-0000-000000000003)
+
+User: investigator1
+  Email: investigator1@test.com
+  Is superuser: False
+  System Roles:
+    - User (ID: 00000000-0000-0000-0000-000000000003)
+    - BlockchainInvestigator (ID: 00000000-0000-0000-0000-000000000008)
+
+
+2. Available Blockchain Roles...
+
+/opt/truefypjs/venv/lib/python3.11/site-packages/httpsig/__init__.py:1: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import get_distribution, DistributionNotFound
+2025-11-05 03:46:16 [DEBU] Start subscribe for expire orgs mapping from memory
+2025-11-05 03:46:16 [DEBU] Start subscribe for expire node assets id mapping from memory
+2025-11-05 03:46:16 [DEBU] Start subscribe vault change
+2025-11-05 03:46:16 [INFO] Start subscribe for stop job execution
+2025-11-05 03:46:16 [DEBU] Start subscribe setting change
+2025-11-05 03:46:16 [DEBU] Start subscribe for expire node assets id mapping from memory
+=== Blockchain Roles ===
+
+Role: BlockchainInvestigator
+  ID: 00000000-0000-0000-0000-000000000008
+  Scope: system
+  Builtin: True
+  Permissions count: 29
+
+Role: BlockchainAuditor
+  ID: 00000000-0000-0000-0000-000000000009
+  Scope: system
+  Builtin: True
+  Permissions count: 32
+
+Role: BlockchainCourt
+  ID: 00000000-0000-0000-0000-00000000000a
+  Scope: system
+  Builtin: True
+  Permissions count: 32
+
+
+3. Creating test user with BlockchainInvestigator role...
+
+/opt/truefypjs/venv/lib/python3.11/site-packages/httpsig/__init__.py:1: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import get_distribution, DistributionNotFound
+2025-11-05 03:46:18 [DEBU] Start subscribe for expire orgs mapping from memory
+2025-11-05 03:46:18 [DEBU] Start subscribe for expire node assets id mapping from memory
+2025-11-05 03:46:18 [DEBU] Start subscribe vault change
+2025-11-05 03:46:18 [INFO] Start subscribe for stop job execution
+2025-11-05 03:46:18 [DEBU] Start subscribe setting change
+2025-11-05 03:46:18 [DEBU] Start subscribe for expire node assets id mapping from memory
+ℹ User already exists: investigator1
+✅ Found role: BlockchainInvestigator
+ℹ Role already assigned
+
+=== Verification ===
+User: investigator1
+Roles:
+  - User
+  - BlockchainInvestigator
+
+4. Issuing certificate for investigator1...
+
+/opt/truefypjs/venv/lib/python3.11/site-packages/httpsig/__init__.py:1: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import get_distribution, DistributionNotFound
+2025-11-05 03:46:20 [DEBU] Start subscribe for expire orgs mapping from memory
+2025-11-05 03:46:20 [DEBU] Start subscribe for expire node assets id mapping from memory
+2025-11-05 03:46:20 [DEBU] Start subscribe vault change
+2025-11-05 03:46:20 [INFO] Start subscribe for stop job execution
+2025-11-05 03:46:20 [DEBU] Start subscribe setting change
+2025-11-05 03:46:20 [DEBU] Start subscribe for expire node assets id mapping from memory
+Traceback (most recent call last):
+  File "/opt/truefypjs/apps/manage.py", line 27, in <module>
+    execute_from_command_line(sys.argv)
+  File "/opt/truefypjs/venv/lib/python3.11/site-packages/django/core/management/__init__.py", line 446, in execute_from_command_line
+    utility.execute()
+  File "/opt/truefypjs/venv/lib/python3.11/site-packages/django/core/management/__init__.py", line 440, in execute
+    self.fetch_command(subcommand).run_from_argv(self.argv)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/truefypjs/venv/lib/python3.11/site-packages/django/core/management/__init__.py", line 279, in fetch_command
+    klass = load_command_class(app_name, subcommand)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/truefypjs/venv/lib/python3.11/site-packages/django/core/management/__init__.py", line 48, in load_command_class
+    module = import_module("%s.management.commands.%s" % (app_name, name))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/opt/truefypjs/apps/pki/management/commands/issue_user_cert.py", line 11, in <module>
+    from pki.models import CertificateAuthority, UserCertificate
+ImportError: cannot import name 'UserCertificate' from 'pki.models' (/opt/truefypjs/apps/pki/models.py)
+✅ Certificate issued: data/certs/pki/investigator1.p12
+   Password: testpass123
+
+5. All issued certificates...
+
+/opt/truefypjs/venv/lib/python3.11/site-packages/httpsig/__init__.py:1: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import get_distribution, DistributionNotFound
+2025-11-05 03:46:23 [DEBU] Start subscribe for expire orgs mapping from memory
+2025-11-05 03:46:23 [DEBU] Start subscribe for expire node assets id mapping from memory
+2025-11-05 03:46:23 [DEBU] Start subscribe vault change
+2025-11-05 03:46:23 [INFO] Start subscribe for stop job execution
+2025-11-05 03:46:23 [DEBU] Start subscribe setting change
+2025-11-05 03:46:23 [DEBU] Start subscribe for expire node assets id mapping from memory
+=== Issued Certificates ===
+
+=========================================
+RBAC Testing Complete!
+=========================================

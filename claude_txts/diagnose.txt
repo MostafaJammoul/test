@@ -1,0 +1,32 @@
+=========================================
+JumpServer Diagnostic
+=========================================
+
+Virtual environment... [0;32m✅[0m
+PostgreSQL connection... [0;32m✅[0m
+Redis connection... [0;32m✅[0m
+Certificate directories... [0;32m✅[0m
+CA certificate (mtls)... [0;31m❌[0m (not found)
+CA CRL (mtls)... [0;31m❌[0m (not found)
+Server SSL certificate... [0;31m❌[0m (not found)
+Django installation... [0;32m✅[0m
+nginx installed... [0;32m✅[0m
+nginx running... [0;32m✅[0m
+nginx config (jumpserver-mtls)... [0;31m❌[0m (not found)
+nginx config enabled... [0;31m❌[0m (not enabled)
+nginx default site disabled... [0;32m✅[0m
+PKI tables... [0;32m✅[0m (3 tables)
+Blockchain tables... [0;32m✅[0m (4 tables)
+CA in database... [0;31m❌[0m (not initialized)
+Users in database... [0;32m✅[0m (3 users)
+Certificates issued... [1;33m⚠[0m (no certificates)
+Blockchain roles... [0;32m✅[0m (3 roles)
+Port 8080 (Django)... [1;33m⚠[0m (not listening - Django not running)
+Port 443 (nginx HTTPS)... [0;31m❌[0m (not listening)
+Port 80 (nginx HTTP)... [1;33m⚠[0m (not listening)
+
+=========================================
+Diagnostic Complete
+=========================================
+
+If you see failures above, run: ./fix_setup.sh
