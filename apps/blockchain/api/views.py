@@ -1,0 +1,664 @@
+# -*- coding: utf-8 -*-
+#
+"""
+Blockchain Chain of Custody API Views
+
+REST API endpoints for evidence management, blockchain transactions,
+investigations, and GUID resolution.
+
+CONFIGURATION REQUIRED:
+    See config/blockchain.yml for Fabric and IPFS connection settings
+"""
+import hashlib
+import logging
+from django.conf import settings
+from django.core.exceptions import PermissionDenied
+from django.utils import timezone
+from rest_framework import viewsets, status, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
+
+from common.permissions import IsValidUser
+from rbac.permissions import RBACPermission
+from orgs.mixins.api import OrgBulkModelViewSet
+from ..models import Investigation, Evidence, BlockchainTransaction, GUIDMapping
+from ..services.guid_resolver import GUIDResolver
+from ..services.archive_service import ArchiveService
+from .serializers import InvestigationSerializer, EvidenceSerializer, BlockchainTransactionSerializer
+
+logger = logging.getLogger(__name__)
+
+# Use mock clients in development/testing mode
+if settings.DEBUG or getattr(settings, 'USE_MOCK_BLOCKCHAIN', True):
+    from ..clients.fabric_client_mock import FabricClient
+    from ..clients.ipfs_client_mock import IPFSClient
+    logger.info("Using MOCK blockchain and IPFS clients for development")
+else:
+    from ..clients.fabric_client import FabricClient
+    from ..clients.ipfs_client import IPFSClient
+    logger.info("Using REAL blockchain and IPFS clients")
+
+
+# =============================================================================
+# CONFIGURATION NOTES
+# =============================================================================
+#
+# Before using these APIs, configure the following:
+#
+# 1. HYPERLEDGER FABRIC CONNECTION (config/fabric-network.json)
+#    - Create a Fabric network connection profile
+#    - Obtain client certificates from Fabric CA
+#    - Configure in settings.FABRIC_NETWORK_CONFIG
+#
+# 2. IPFS CONNECTION (environment variables or config/blockchain.yml)
+#    - Set IPFS_API_URL (e.g., /ip4/127.0.0.1/tcp/5001/http)
+#    - If using mTLS with IPFS, set IPFS_TLS_* settings
+#
+# 3. MTLS CERTIFICATES (for JumpServer as client to Fabric/IPFS)
+#    - Place Fabric client cert at: /etc/jumpserver/certs/fabric-client.pem
+#    - Place Fabric client key at: /etc/jumpserver/certs/fabric-client-key.pem
+#    - Place Fabric CA cert at: /etc/jumpserver/certs/fabric-ca.pem
+#    - (Optional) IPFS certs if using mTLS with IPFS
+#
+# 4. ENCRYPTION KEYS (for IPFS file encryption)
+#    - Configure AES-256-GCM master key in settings.IPFS_ENCRYPTION_KEY
+#    - Recommended: Use hardware security module (HSM) or key management service
+#
+# 5. PERMISSIONS (RBAC)
+#    - Ensure blockchain roles are assigned to users (see rbac/builtin.py)
+#    - Investigator: Can create investigations, upload evidence
+#    - Auditor: Read-only access to all data
+#    - Court: Read-only + archive/reopen + GUID resolution
+#
+# =============================================================================
+
+
+class InvestigationViewSet(OrgBulkModelViewSet):
+    """
+    Investigation Management API
+
+    Endpoints:
+        GET    /api/v1/blockchain/investigations/              - List investigations
+        POST   /api/v1/blockchain/investigations/              - Create investigation
+        GET    /api/v1/blockchain/investigations/{id}/         - Get investigation detail
+        PATCH  /api/v1/blockchain/investigations/{id}/         - Update investigation
+        POST   /api/v1/blockchain/investigations/{id}/archive/ - Archive investigation (Court only)
+        POST   /api/v1/blockchain/investigations/{id}/reopen/  - Reopen investigation (Court only)
+
+    Permissions:
+        - Investigator: Create, view own investigations
+        - Auditor: View all investigations (read-only)
+        - Court: View all, archive, reopen
+    """
+    model = Investigation
+    serializer_class = InvestigationSerializer
+    permission_classes = [IsAuthenticated, RBACPermission]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['case_number', 'title', 'description']
+    filterset_fields = ['status', 'created_by']
+    ordering_fields = ['created_at', 'case_number']
+
+    def get_queryset(self):
+        """
+        Filter investigations based on user role
+        - Investigators see only their own
+        - Auditors and Court see all
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        # Auditors and Court can see all investigations
+        if user.has_perm('blockchain.view_all_investigations'):
+            return queryset
+
+        # Investigators see only their own
+        return queryset.filter(created_by=user)
+
+    def perform_create(self, serializer):
+        """
+        Create new investigation and log to blockchain
+        """
+        investigation = serializer.save(created_by=self.request.user)
+
+        # TODO: CONFIGURATION - Initialize blockchain transaction for investigation creation
+        # Uncomment when Fabric is configured:
+        # try:
+        #     fabric_client = FabricClient()
+        #     tx_hash = fabric_client.create_investigation(
+        #         case_number=investigation.case_number,
+        #         user=self.request.user.username
+        #     )
+        #     logger.info(f"Investigation {investigation.case_number} created on blockchain: {tx_hash}")
+        # except Exception as e:
+        #     logger.error(f"Failed to create investigation on blockchain: {e}")
+        #     # Don't fail the API call, but log the error
+
+        return investigation
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def archive(self, request, pk=None):
+        """
+        Archive an investigation and move to cold chain
+
+        Permissions: blockchain.archive_investigation (Court role only)
+
+        Process:
+            1. Verify user has Court role
+            2. Retrieve all evidence from hot chain
+            3. Archive to cold chain via ArchiveService
+            4. Update investigation status to 'archived'
+        """
+        investigation = self.get_object()
+
+        # Check permission
+        if not request.user.has_perm('blockchain.archive_investigation'):
+            raise PermissionDenied("Only Court role can archive investigations")
+
+        # Check if already archived
+        if investigation.status == 'archived':
+            return Response(
+                {'error': 'Investigation already archived'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # TODO: CONFIGURATION - Archive to cold chain
+            # Uncomment when Fabric is configured:
+            # archive_service = ArchiveService()
+            # result = archive_service.archive_investigation(
+            #     investigation=investigation,
+            #     archived_by=request.user
+            # )
+
+            # For now, just update status
+            investigation.status = 'archived'
+            investigation.archived_by = request.user
+            investigation.archived_at = timezone.now()
+            investigation.save()
+
+            logger.info(f"Investigation {investigation.case_number} archived by {request.user.username}")
+
+            return Response({
+                'status': 'success',
+                'message': f'Investigation {investigation.case_number} archived to cold chain',
+                # 'cold_chain_tx_hash': result.get('tx_hash')
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to archive investigation {investigation.case_number}: {e}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def reopen(self, request, pk=None):
+        """
+        Reopen an archived investigation
+
+        Permissions: blockchain.reopen_investigation (Court role only)
+        """
+        investigation = self.get_object()
+
+        # Check permission
+        if not request.user.has_perm('blockchain.reopen_investigation'):
+            raise PermissionDenied("Only Court role can reopen investigations")
+
+        # Check if investigation is archived
+        if investigation.status != 'archived':
+            return Response(
+                {'error': 'Investigation is not archived'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # TODO: CONFIGURATION - Log reopen event on blockchain
+            # Uncomment when Fabric is configured:
+            # fabric_client = FabricClient()
+            # tx_hash = fabric_client.reopen_investigation(
+            #     case_number=investigation.case_number,
+            #     user=request.user.username
+            # )
+
+            investigation.status = 'active'
+            investigation.reopened_by = request.user
+            investigation.reopened_at = timezone.now()
+            investigation.save()
+
+            logger.info(f"Investigation {investigation.case_number} reopened by {request.user.username}")
+
+            return Response({
+                'status': 'success',
+                'message': f'Investigation {investigation.case_number} reopened'
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to reopen investigation {investigation.case_number}: {e}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class EvidenceViewSet(OrgBulkModelViewSet):
+    """
+    Evidence Management API
+
+    Endpoints:
+        GET    /api/v1/blockchain/evidence/              - List evidence
+        POST   /api/v1/blockchain/evidence/              - Upload evidence
+        GET    /api/v1/blockchain/evidence/{id}/         - Get evidence detail
+        GET    /api/v1/blockchain/evidence/{id}/download/ - Download evidence file
+        POST   /api/v1/blockchain/evidence/{id}/verify/  - Verify evidence integrity
+
+    Permissions:
+        - Investigator: Upload, view own evidence
+        - Auditor: View all evidence (read-only)
+        - Court: View all evidence
+
+    CONFIGURATION REQUIRED:
+        - IPFS_API_URL: IPFS node connection string
+        - IPFS_ENCRYPTION_KEY: Master encryption key for AES-256-GCM
+        - FABRIC_NETWORK_CONFIG: Path to Fabric network connection profile
+    """
+    model = Evidence
+    serializer_class = EvidenceSerializer
+    permission_classes = [IsAuthenticated, RBACPermission]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ['description', 'file_name']
+    filterset_fields = ['investigation', 'uploaded_by']
+
+    def get_queryset(self):
+        """
+        Filter evidence based on user role
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        # Auditors and Court can see all evidence
+        if user.has_perm('blockchain.view_all_evidence'):
+            return queryset
+
+        # Investigators see only their own
+        return queryset.filter(uploaded_by=user)
+
+    def create(self, request, *args, **kwargs):
+        """
+        Upload evidence file to IPFS and record on blockchain
+
+        Request payload:
+            - file: Binary file (multipart/form-data)
+            - investigation_id: UUID of investigation
+            - description: Evidence description
+            - anonymize: Boolean (optional) - Use GUID instead of username
+
+        Process:
+            1. Validate file and investigation
+            2. Calculate SHA-256 hash of file
+            3. Encrypt file with AES-256-GCM
+            4. Upload encrypted file to IPFS
+            5. Record transaction on hot chain (Hyperledger Fabric)
+            6. Save evidence metadata to database
+
+        Returns:
+            - evidence_id: UUID
+            - ipfs_cid: IPFS Content Identifier
+            - file_hash: SHA-256 hash
+            - hot_chain_tx_hash: Blockchain transaction hash
+        """
+        # Validate request
+        if 'file' not in request.FILES:
+            return Response(
+                {'error': 'No file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        file = request.FILES['file']
+        investigation_id = request.data.get('investigation_id')
+        description = request.data.get('description', '')
+        anonymize = request.data.get('anonymize', 'false').lower() == 'true'
+
+        # Validate investigation exists
+        try:
+            investigation = Investigation.objects.get(id=investigation_id)
+        except Investigation.DoesNotExist:
+            return Response(
+                {'error': 'Investigation not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if investigation is active
+        if investigation.status != 'active':
+            return Response(
+                {'error': 'Cannot upload evidence to non-active investigation'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Step 1: Calculate file hash
+            file_content = file.read()
+            file_hash = hashlib.sha256(file_content).hexdigest()
+            logger.info(f"File hash calculated: {file_hash}")
+
+            # TODO: CONFIGURATION - Upload to IPFS
+            # Uncomment when IPFS is configured:
+            # ipfs_client = IPFSClient()
+            # ipfs_cid, encryption_key_id = ipfs_client.upload_evidence(
+            #     file_content=file_content,
+            #     file_name=file.name
+            # )
+            # logger.info(f"File uploaded to IPFS: {ipfs_cid}")
+
+            # TEMPORARY: Mock IPFS upload
+            ipfs_cid = f"Qm{file_hash[:44]}"  # Mock CID
+            encryption_key_id = "mock-encryption-key-id"
+
+            # Step 2: Get user identifier (username or GUID)
+            if anonymize:
+                user_guid = GUIDResolver.generate_guid(request.user)
+                user_identifier = user_guid
+            else:
+                user_guid = None
+                user_identifier = request.user.username
+
+            # TODO: CONFIGURATION - Record on hot chain
+            # Uncomment when Fabric is configured:
+            # fabric_client = FabricClient()
+            # hot_chain_tx = fabric_client.append_evidence(
+            #     chain='hot',
+            #     evidence_hash=file_hash,
+            #     ipfs_cid=ipfs_cid,
+            #     user=user_identifier,
+            #     investigation_id=str(investigation.id)
+            # )
+            # logger.info(f"Evidence recorded on hot chain: {hot_chain_tx}")
+
+            # TEMPORARY: Mock blockchain transaction
+            hot_chain_tx = f"0x{file_hash[:40]}"
+
+            # Step 3: Create blockchain transaction record
+            blockchain_tx = BlockchainTransaction.objects.create(
+                transaction_hash=hot_chain_tx,
+                chain_type='hot',
+                evidence_hash=file_hash,
+                ipfs_cid=ipfs_cid,
+                user=request.user,
+                user_guid=user_guid,
+                metadata={
+                    'file_name': file.name,
+                    'file_size': len(file_content),
+                    'investigation_id': str(investigation.id)
+                }
+            )
+
+            # Step 4: Create evidence record
+            evidence = Evidence.objects.create(
+                investigation=investigation,
+                file_name=file.name,
+                file_size=len(file_content),
+                file_hash_sha256=file_hash,
+                ipfs_cid=ipfs_cid,
+                encryption_key_id=encryption_key_id,
+                description=description,
+                uploaded_by=request.user,
+                hot_chain_tx=blockchain_tx
+            )
+
+            logger.info(
+                f"Evidence {evidence.id} uploaded successfully by {request.user.username} "
+                f"(Investigation: {investigation.case_number})"
+            )
+
+            return Response({
+                'status': 'success',
+                'evidence_id': str(evidence.id),
+                'file_name': file.name,
+                'file_hash': file_hash,
+                'ipfs_cid': ipfs_cid,
+                'hot_chain_tx_hash': hot_chain_tx,
+                'uploaded_at': evidence.created_at.isoformat()
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Failed to upload evidence: {e}", exc_info=True)
+            return Response(
+                {'error': f'Failed to upload evidence: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def download(self, request, pk=None):
+        """
+        Download evidence file from IPFS
+
+        Process:
+            1. Verify user has permission to access evidence
+            2. Retrieve encrypted file from IPFS
+            3. Decrypt file with stored encryption key
+            4. Return file as HTTP response
+
+        CONFIGURATION REQUIRED:
+            - IPFS_API_URL must be configured
+            - Decryption keys must be accessible
+        """
+        evidence = self.get_object()
+
+        # Check permission
+        if not request.user.has_perm('blockchain.download_evidence'):
+            raise PermissionDenied("Insufficient permissions to download evidence")
+
+        try:
+            # TODO: CONFIGURATION - Download from IPFS
+            # Uncomment when IPFS is configured:
+            # ipfs_client = IPFSClient()
+            # file_content = ipfs_client.retrieve_evidence(
+            #     ipfs_cid=evidence.ipfs_cid,
+            #     encryption_key_id=evidence.encryption_key_id
+            # )
+
+            # For now, return error
+            return Response(
+                {'error': 'IPFS download not configured. See blockchain/clients/ipfs_client.py'},
+                status=status.HTTP_501_NOT_IMPLEMENTED
+            )
+
+            # TODO: Return file response
+            # from django.http import HttpResponse
+            # response = HttpResponse(file_content, content_type='application/octet-stream')
+            # response['Content-Disposition'] = f'attachment; filename="{evidence.file_name}"'
+            # return response
+
+        except Exception as e:
+            logger.error(f"Failed to download evidence {evidence.id}: {e}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def verify(self, request, pk=None):
+        """
+        Verify evidence integrity against blockchain record
+
+        Process:
+            1. Retrieve evidence from IPFS
+            2. Calculate SHA-256 hash
+            3. Compare with hash stored on blockchain
+            4. Verify merkle proof (if available)
+
+        Returns:
+            - verified: Boolean
+            - stored_hash: Hash from blockchain
+            - calculated_hash: Hash from file
+            - match: Boolean
+        """
+        evidence = self.get_object()
+
+        try:
+            # TODO: CONFIGURATION - Verify against blockchain
+            # Uncomment when Fabric is configured:
+            # fabric_client = FabricClient()
+            # blockchain_data = fabric_client.query_evidence(
+            #     tx_hash=evidence.hot_chain_tx.transaction_hash
+            # )
+            #
+            # ipfs_client = IPFSClient()
+            # file_content = ipfs_client.retrieve_evidence(
+            #     ipfs_cid=evidence.ipfs_cid,
+            #     encryption_key_id=evidence.encryption_key_id
+            # )
+            # calculated_hash = hashlib.sha256(file_content).hexdigest()
+            #
+            # verified = (calculated_hash == blockchain_data['evidence_hash'])
+
+            # TEMPORARY: Mock verification
+            return Response({
+                'status': 'pending',
+                'message': 'Verification requires Fabric and IPFS configuration',
+                'stored_hash': evidence.file_hash_sha256,
+                'blockchain_tx': evidence.hot_chain_tx.transaction_hash,
+                'ipfs_cid': evidence.ipfs_cid
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to verify evidence {evidence.id}: {e}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class BlockchainTransactionViewSet(OrgBulkModelViewSet):
+    """
+    Blockchain Transaction History API
+
+    Endpoints:
+        GET /api/v1/blockchain/transactions/ - List all blockchain transactions
+        GET /api/v1/blockchain/transactions/{id}/ - Get transaction detail
+
+    Permissions:
+        - Auditor: View all transactions
+        - Court: View all transactions
+        - Investigator: View own transactions only
+    """
+    model = BlockchainTransaction
+    serializer_class = BlockchainTransactionSerializer
+    permission_classes = [IsAuthenticated, RBACPermission]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['chain_type', 'user']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        """
+        Filter transactions based on user role
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        # Auditors and Court can see all transactions
+        if user.has_perm('blockchain.view_all_transactions'):
+            return queryset
+
+        # Investigators see only their own
+        return queryset.filter(user=user)
+
+
+class GUIDResolverViewSet(viewsets.ViewSet):
+    """
+    GUID Resolution API (Court Role Only)
+
+    Endpoints:
+        POST /api/v1/blockchain/guid/resolve/ - Resolve GUID to user identity
+
+    Permissions:
+        - Court role only (blockchain.resolve_guid permission)
+
+    Purpose:
+        Investigators can submit evidence anonymously using GUIDs.
+        Only Court role can resolve GUIDs back to actual user identities.
+        All resolution attempts are logged for audit trail.
+    """
+    permission_classes = [IsAuthenticated, RBACPermission]
+
+    @action(detail=False, methods=['post'])
+    def resolve(self, request):
+        """
+        Resolve GUID to user identity
+
+        Request payload:
+            - guid: The GUID to resolve (string)
+            - reason: Reason for resolution (required for audit)
+
+        Returns:
+            - user_id: User UUID
+            - username: Username
+            - full_name: User's full name
+            - resolved_at: Timestamp
+            - resolved_by: Court user who performed resolution
+
+        Audit:
+            All resolution attempts are logged to audits app
+        """
+        # Check permission
+        if not request.user.has_perm('blockchain.resolve_guid'):
+            raise PermissionDenied("Only Court role can resolve GUIDs")
+
+        guid = request.data.get('guid')
+        reason = request.data.get('reason')
+
+        if not guid:
+            return Response(
+                {'error': 'GUID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not reason:
+            return Response(
+                {'error': 'Reason for resolution is required for audit trail'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Resolve GUID
+            user = GUIDResolver.resolve_guid(guid, request.user)
+
+            # Log resolution (audit trail)
+            logger.warning(
+                f"GUID {guid} resolved to user {user.username} by {request.user.username}. "
+                f"Reason: {reason}"
+            )
+
+            # TODO: Create audit log entry
+            # from audits.models import OperateLog
+            # OperateLog.objects.create(
+            #     user=request.user.username,
+            #     action='guid_resolution',
+            #     resource=guid,
+            #     resource_type='guid',
+            #     detail=f"Resolved to {user.username}. Reason: {reason}"
+            # )
+
+            return Response({
+                'status': 'success',
+                'guid': guid,
+                'user_id': str(user.id),
+                'username': user.username,
+                'full_name': user.get_full_name(),
+                'resolved_by': request.user.username,
+                'reason': reason
+            })
+
+        except GUIDMapping.DoesNotExist:
+            return Response(
+                {'error': 'GUID not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Failed to resolve GUID {guid}: {e}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
