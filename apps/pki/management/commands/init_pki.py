@@ -72,10 +72,12 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS('Creating Internal CA...'))
 
             ca_manager = CAManager()
+            # Note: create_ca() accepts validity_days, not validity_years
+            # Convert years to days
+            validity_days_calculated = validity_years * 365
             ca = ca_manager.create_ca(
                 name=ca_name,
-                validity_years=validity_years,
-                key_size=key_size
+                validity_days=validity_days_calculated
             )
 
             self.stdout.write(self.style.SUCCESS(
