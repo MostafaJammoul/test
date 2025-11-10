@@ -630,9 +630,24 @@ python manage.py createsuperuser --noinput 2>/dev/null || {
     log_info "You can create it manually with: cd /opt/truefypjs/apps && python manage.py createsuperuser"
 }
 
-# Verify superuser was created
+# Verify superuser was created and fix is_superuser/is_staff flags
 if python manage.py shell -c "from users.models import User; print(User.objects.filter(username='$SUPERUSER_NAME').exists())" 2>/dev/null | grep -q "True"; then
-    log_success "Superuser '$SUPERUSER_NAME' ready"
+    log_success "Superuser '$SUPERUSER_NAME' exists"
+
+    # Explicitly set is_superuser and is_staff flags (in case migration was missing them)
+    log_info "Ensuring superuser flags are set correctly..."
+    python manage.py shell -c "
+from users.models import User
+user = User.objects.get(username='$SUPERUSER_NAME')
+user.is_superuser = True
+user.is_staff = True
+user.role = 'Admin'
+user.is_active = True
+user.save()
+print(f'Updated {user.username}: is_superuser={user.is_superuser}, is_staff={user.is_staff}, role={user.role}')
+" 2>/dev/null || log_warning "Could not update superuser flags"
+
+    log_success "Superuser '$SUPERUSER_NAME' configured correctly"
 else
     log_error "Superuser creation verification failed"
 fi
@@ -807,34 +822,46 @@ echo "  - nginx errors: /var/log/nginx/error.log"
 echo ""
 
 log_info "Next Steps:"
-echo "  1. Start the backend server (see commands above)"
+echo "  1. Start BOTH backend AND frontend servers:"
 echo ""
-echo "  2. Access the application:"
-echo "     - Password Login (Frontend): http://localhost:3000/login"
-echo "       Use username: $SUPERUSER_NAME, password: $SUPERUSER_PASSWORD"
-echo "     - Django Admin: http://localhost:8080/admin"
-echo "       Same credentials"
-echo "     - mTLS Login (nginx): https://localhost (requires certificate import)"
+echo "     OPTION A - Quick Start (Recommended):"
+echo "       ./start_services.sh"
 echo ""
-echo "  3. First login workflow:"
+echo "     OPTION B - Manual Start (two separate terminals):"
+echo "       Terminal 1 - Backend:"
+echo "         source venv/bin/activate"
+echo "         cd apps && python manage.py runserver 0.0.0.0:8080"
+echo ""
+echo "       Terminal 2 - Frontend:"
+echo "         cd frontend && npm run dev"
+echo ""
+echo "  2. Access the application at http://192.168.148.154:3000"
+echo "     (or http://localhost:3000 if accessing locally)"
+echo ""
+echo "  3. Login with superuser credentials:"
+echo "     - Username: $SUPERUSER_NAME"
+echo "     - Password: $SUPERUSER_PASSWORD"
+echo ""
+echo "  4. First login workflow:"
 echo "     a) Login with password → Redirected to MFA setup"
 echo "     b) Scan QR code with Google Authenticator/Authy"
 echo "     c) Verify 6-digit code → Access dashboard"
 echo ""
-echo "  4. Manage users and certificates:"
-echo "     - Create users in Django Admin"
-echo "     - Download certificates: Admin → PKI → Certificates"
-echo "     - Distribute .p12 files to users"
+echo "  5. Admin Dashboard Features (as superuser):"
+echo "     - User Management: Create/modify users, assign roles"
+echo "     - Certificate Management: Download user certificates (.p12 files)"
+echo "     - Tag Management: Create/modify investigation tags"
+echo "     - Investigation Management: Create, archive, reopen investigations"
+echo "     - Evidence Management: Upload evidence, verify blockchain records"
 echo ""
-echo "  5. Test blockchain features:"
-echo "     - Create investigations"
-echo "     - Upload evidence"
-echo "     - View blockchain transactions"
+echo "  6. Other Access Points:"
+echo "     - Django Admin: http://192.168.148.154:8080/admin"
+echo "     - API Docs: http://192.168.148.154:8080/api/docs"
+echo "     - mTLS Login (nginx): https://localhost (requires certificate import)"
 echo ""
 
-log_warning "Starting backend server in 5 seconds... (Press Ctrl+C to cancel)"
-sleep 5
-
-log_info "Starting JumpServer backend on http://localhost:8080..."
+log_success "✓ Setup Complete!"
 echo ""
-cd apps && python manage.py runserver 0.0.0.0:8080
+log_warning "⚠️  REMEMBER: You need to start BOTH backend AND frontend servers!"
+log_info "Run: ./start_services.sh"
+echo ""

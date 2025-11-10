@@ -43,9 +43,31 @@ export default function CertificateManagement() {
                   {cert.is_revoked ? 'Revoked' : 'Active'}
                 </Badge>
                 {!cert.is_revoked && (
-                  <Button variant="danger" size="sm">
-                    Revoke
-                  </Button>
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        // Download certificate (.p12 file)
+                        const downloadUrl = `/api/v1/pki/certificates/${cert.id}/download/`;
+                        window.location.href = downloadUrl;
+                      }}
+                      title="Download .p12 certificate file"
+                    >
+                      Download
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm(`Revoke certificate for ${cert.common_name}?`)) {
+                          alert('Certificate revocation will be implemented');
+                        }
+                      }}
+                    >
+                      Revoke
+                    </Button>
+                  </>
                 )}
               </div>
             </div>

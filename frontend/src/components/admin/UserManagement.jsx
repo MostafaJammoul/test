@@ -76,16 +76,124 @@ export default function UserManagement() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         title="Create User"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-user-form">
+              Create User
+            </Button>
+          </>
+        }
       >
-        <p className="text-gray-600">
-          User creation form will be implemented here. For now, use Django admin panel.
-        </p>
-        <div className="mt-4">
-          <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
-            Close
-          </Button>
-        </div>
+        <UserCreateForm
+          onSubmit={(data) => {
+            // TODO: Implement user creation API call
+            console.log('Creating user:', data);
+            alert('User creation will be implemented. For now, use Django Admin at http://192.168.148.154:8080/admin');
+            setIsCreateModalOpen(false);
+          }}
+          formId="create-user-form"
+        />
       </Modal>
     </Card>
+  );
+}
+
+function UserCreateForm({ onSubmit, formId }) {
+  const [formData, setFormData] = useState({
+    username: '',
+    name: '',
+    email: '',
+    password: '',
+    role: 'User',
+    is_active: true,
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(formData);
+  };
+
+  return (
+    <form id={formId} onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Username *</label>
+        <input
+          type="text"
+          required
+          value={formData.username}
+          onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+          placeholder="john.doe"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Full Name *</label>
+        <input
+          type="text"
+          required
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+          placeholder="John Doe"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Email *</label>
+        <input
+          type="email"
+          required
+          value={formData.email}
+          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+          placeholder="john.doe@example.com"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Password *</label>
+        <input
+          type="password"
+          required
+          minLength={8}
+          value={formData.password}
+          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+          placeholder="Minimum 8 characters"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Role *</label>
+        <select
+          value={formData.role}
+          onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+        >
+          <option value="User">User (No blockchain access)</option>
+          <option value="Admin">System Admin (Full access)</option>
+          <option value="Auditor">Auditor (Read-only blockchain)</option>
+        </select>
+        <p className="mt-1 text-xs text-gray-500">
+          Note: Investigator and Court roles must be assigned via Django Admin after user creation
+        </p>
+      </div>
+
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          checked={formData.is_active}
+          onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+        />
+        <label className="ml-2 block text-sm text-gray-900">
+          Active (User can log in)
+        </label>
+      </div>
+    </form>
   );
 }
