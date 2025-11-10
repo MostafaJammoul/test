@@ -1,0 +1,209 @@
+"""
+mTLS Authentication Middleware
+
+Authenticates users based on client SSL certificates presented to nginx.
+
+Database Operations:
+- SELECT FROM pki_certificate WHERE serial_number = ? AND is_revoked = FALSE
+- SELECT FROM users_user WHERE id = certificate.user_id
+- INSERT INTO django_session (via Django auth.login())
+
+Flow:
+1. nginx verifies client certificate
+2. nginx passes cert info via headers:
+   - X-SSL-Client-Serial: Certificate serial number
+   - X-SSL-Client-DN: Distinguished Name
+   - X-SSL-Client-Verify: SUCCESS or FAILED
+3. Middleware queries pki_certificate table
+4. If valid cert found → login user
+5. If user has no MFA setup → flag for setup
+6. If user has MFA but not verified → flag for challenge
+"""
+
+from django.contrib.auth import login as auth_login
+from django.utils.deprecation import MiddlewareMixin
+from django.http import JsonResponse
+from common.utils import get_logger
+
+logger = get_logger(__file__)
+
+
+class MTLSAuthenticationMiddleware(MiddlewareMixin):
+    """
+    Authenticate users via mTLS client certificates
+
+    nginx must be configured to pass these headers:
+    - X-SSL-Client-Verify: SUCCESS | FAILED | NONE
+    - X-SSL-Client-Serial: hex serial number
+    - X-SSL-Client-DN: Distinguished Name (CN=username)
+
+    Note: Django admin (/admin/) allows traditional username/password auth
+    for initial setup and certificate management.
+    """
+
+    # URLs that allow traditional authentication (username/password)
+    TRADITIONAL_AUTH_URLS = [
+        '/admin/',  # Django admin for certificate management
+        '/api/v1/authentication/auth/',  # Token creation endpoint
+        '/api/v1/authentication/tokens/',  # Legacy token endpoint
+    ]
+
+    def process_request(self, request):
+        """
+        Process incoming request and authenticate via client certificate
+
+        Database Queries:
+        1. SELECT * FROM pki_certificate WHERE serial_number=? AND is_revoked=FALSE
+        2. SELECT * FROM users_user WHERE id=certificate.user_id
+        3. INSERT INTO django_session (via auth_login())
+        """
+
+        # Allow Django admin and auth endpoints to use traditional authentication
+        for exempt_url in self.TRADITIONAL_AUTH_URLS:
+            if request.path.startswith(exempt_url):
+                # Mark that this is traditional auth, not certificate auth
+                if request.user.is_authenticated:
+                    request.session['auth_method'] = 'password'
+                return None
+
+        # Skip if user already authenticated via certificate
+        if request.user.is_authenticated and request.session.get('auth_method') == 'certificate':
+            return None
+
+        # Get certificate info from nginx headers
+        cert_verify = request.META.get('HTTP_X_SSL_CLIENT_VERIFY', 'NONE')
+        cert_serial = request.META.get('HTTP_X_SSL_CLIENT_SERIAL', '')
+        cert_dn = request.META.get('HTTP_X_SSL_CLIENT_DN', '')
+
+        # Skip if no certificate or verification failed
+        if cert_verify != 'SUCCESS' or not cert_serial:
+            logger.debug(f"No valid client certificate: verify={cert_verify}, serial={cert_serial}")
+            return None
+
+        # Import here to avoid circular imports
+        from pki.models import Certificate
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+
+        try:
+            # Query pki_certificate table
+            # SQL: SELECT * FROM pki_certificate WHERE serial_number=%s AND is_revoked=FALSE
+            certificate = Certificate.objects.select_related('user').get(
+                serial_number=cert_serial,
+                is_revoked=False
+            )
+
+            # Get the user associated with this certificate
+            user = certificate.user
+
+            # Check if user is active
+            if not user.is_active:
+                logger.warning(f"Certificate {cert_serial} belongs to inactive user {user.username}")
+                return JsonResponse({
+                    'error': 'User account is disabled'
+                }, status=403)
+
+            # Log user in (creates session)
+            # Database: INSERT INTO django_session
+            auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+            # Mark authentication method as certificate-based
+            request.session['auth_method'] = 'certificate'
+
+            logger.info(f"User {user.username} authenticated via mTLS certificate {cert_serial}")
+
+            # Check MFA status
+            if not user.otp_secret_key:
+                # User has no MFA configured - needs setup
+                # Set flag in session for frontend to detect
+                request.session['mfa_setup_required'] = True
+                request.session['mfa_verified'] = False
+                logger.info(f"User {user.username} needs MFA setup")
+            else:
+                # User has MFA configured - needs verification each login
+                request.session['mfa_setup_required'] = False
+                request.session['mfa_verified'] = False
+                logger.info(f"User {user.username} needs MFA verification")
+
+            return None
+
+        except Certificate.DoesNotExist:
+            logger.warning(f"Certificate with serial {cert_serial} not found or revoked")
+            return JsonResponse({
+                'error': 'Invalid or revoked certificate'
+            }, status=401)
+
+        except Exception as e:
+            logger.error(f"mTLS authentication error: {e}", exc_info=True)
+            return JsonResponse({
+                'error': 'Authentication error'
+            }, status=500)
+
+
+class MFARequiredMiddleware(MiddlewareMixin):
+    """
+    Enforce MFA verification for certificate-authenticated users
+
+    Blocks access to protected resources until MFA is verified.
+    Note: Traditional username/password auth (for Django admin) bypasses MFA requirement.
+    """
+
+    # URLs that don't require MFA verification
+    MFA_EXEMPT_URLS = [
+        '/api/v1/authentication/mfa/setup/',
+        '/api/v1/authentication/mfa/verify-totp/',
+        '/api/v1/authentication/mfa/status/',
+        '/api/v1/authentication/auth/',  # Token creation
+        '/api/v1/authentication/tokens/',  # Legacy tokens
+        '/api/health/',
+        '/admin/',  # Django admin (uses traditional auth)
+        '/setup-mfa',
+        '/mfa-challenge',
+        '/static/',
+        '/media/',
+    ]
+
+    def process_request(self, request):
+        """
+        Check if user has completed MFA verification
+
+        Database: Reads request.session (django_session table)
+        """
+
+        # Skip if user not authenticated
+        if not request.user.is_authenticated:
+            return None
+
+        # Skip if using traditional authentication (not certificate-based)
+        if request.session.get('auth_method') != 'certificate':
+            logger.debug(f"Skipping MFA for traditional auth: {request.user.username}")
+            return None
+
+        # Check if URL is exempt from MFA requirement
+        for exempt_url in self.MFA_EXEMPT_URLS:
+            if request.path.startswith(exempt_url):
+                return None
+
+        # Check if user needs MFA setup
+        if request.session.get('mfa_setup_required'):
+            # Allow access to setup page, block everything else
+            if not request.path.startswith('/setup-mfa'):
+                return JsonResponse({
+                    'error': 'MFA setup required',
+                    'redirect': '/setup-mfa'
+                }, status=403)
+            return None
+
+        # Check if MFA is verified for this session
+        if not request.session.get('mfa_verified'):
+            # Allow access to MFA challenge page, block everything else
+            if not request.path.startswith('/mfa-challenge'):
+                return JsonResponse({
+                    'error': 'MFA verification required',
+                    'redirect': '/mfa-challenge'
+                }, status=403)
+            return None
+
+        # MFA verified, allow access
+        return None

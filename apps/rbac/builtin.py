@@ -63,6 +63,18 @@ app_exclude_perms = [
     ('rbac', '*', '*', '*'),
 ]
 
+# ==============================================================================
+# BLOCKCHAIN SECURITY HARDENING - EXCLUDE BLOCKCHAIN FROM LEGACY ROLES
+# ==============================================================================
+# Prevent legacy JumpServer roles (SystemAuditor, OrgAdmin, etc.) from
+# accessing blockchain evidence features to maintain chain of custody integrity
+legacy_role_blockchain_exclude_perms = [
+    ('blockchain', '*', '*', '*'),  # No blockchain model access
+    ('pki', 'certificate', 'add,delete,change', '*'),  # No cert management
+    ('pki', 'certificateauthority', '*', '*'),  # No CA access
+]
+# ==============================================================================
+
 need_check = [
     *auditor_perms, *user_perms, *app_exclude_perms,
     *system_exclude_permissions, *org_exclude_permissions
@@ -78,6 +90,22 @@ if len(defines_errors) != 0:
 # Blockchain Chain of Custody Roles
 # These roles provide specialized permissions for evidence management with
 # Hyperledger Fabric (hot/cold chains) and IPFS storage
+
+# ==============================================================================
+# PKI PERMISSIONS (BLOCKCHAIN SECURITY HARDENING)
+# ==============================================================================
+# SystemAdmin has full PKI control for certificate lifecycle management
+_system_admin_pki_perms = (
+    ('pki', 'certificateauthority', '*', '*'),  # Full CA management
+    ('pki', 'certificate', '*', '*'),  # Full certificate management
+)
+
+# Blockchain roles can view their own certificates only
+_blockchain_user_pki_perms = (
+    ('pki', 'certificate', 'view', 'self'),  # View own certificate status
+)
+# ==============================================================================
+
 _blockchain_investigator_perms = (
     # Blockchain operations
     ('blockchain', 'investigation', '*', '*'),
@@ -85,6 +113,8 @@ _blockchain_investigator_perms = (
     ('blockchain', 'blockchaintransaction', 'add,view', '*'),
     ('blockchain', 'blockchaintransaction', 'append', 'hot'),
     ('blockchain', 'blockchaintransaction', 'append', 'cold'),
+    # PKI permissions
+    *_blockchain_user_pki_perms,
     # Audit logs (view own actions)
     ('audits', 'userloginlog', 'view', 'self'),
     ('audits', 'operatelog', 'view', 'self'),
@@ -97,6 +127,8 @@ _blockchain_auditor_perms = (
     ('blockchain', 'investigation', 'view', '*'),
     ('blockchain', 'evidence', 'view', '*'),
     ('blockchain', 'blockchaintransaction', 'view', '*'),
+    # PKI permissions
+    *_blockchain_user_pki_perms,
     # Full audit log access
     ('audits', '*', 'view', '*'),
     # Reports
@@ -115,6 +147,8 @@ _blockchain_court_perms = (
     ('blockchain', 'investigation', 'reopen', '*'),
     # GUID resolution (ONLY court role)
     ('blockchain', 'guidmapping', 'resolve_guid', '*'),
+    # PKI permissions
+    *_blockchain_user_pki_perms,
     # Full audit log access
     ('audits', '*', 'view', '*'),
     # Reports
@@ -175,12 +209,24 @@ class PredefineRole:
 
 
 class BuiltinRole:
+    # ==============================================================================
+    # SystemAdmin: Full access including PKI management (BLOCKCHAIN HARDENING)
+    # ==============================================================================
     system_admin = PredefineRole(
-        '1', gettext_noop('SystemAdmin'), Scope.system, []
+        '1', gettext_noop('SystemAdmin'), Scope.system,
+        _system_admin_pki_perms  # Add PKI permissions explicitly
     )
+    # Note: SystemAdmin still gets ALL permissions via is_admin() bypass,
+    # but explicitly defining PKI perms ensures permission checks work correctly
+    # ==============================================================================
+    # ==============================================================================
+    # BLOCKCHAIN SECURITY: Legacy roles with blockchain exclusions
+    # ==============================================================================
     system_auditor = PredefineRole(
-        '2', gettext_noop('SystemAuditor'), Scope.system, system_auditor_perms
+        '2', gettext_noop('SystemAuditor'), Scope.system,
+        legacy_role_blockchain_exclude_perms, 'exclude'  # EXCLUDE blockchain access
     )
+    # ==============================================================================
     system_component = PredefineRole(
         '4', gettext_noop('SystemComponent'), Scope.system, app_exclude_perms, 'exclude'
     )
@@ -190,9 +236,14 @@ class BuiltinRole:
     org_admin = PredefineRole(
         '5', gettext_noop('OrgAdmin'), Scope.org, []
     )
+    # ==============================================================================
+    # BLOCKCHAIN SECURITY: Legacy roles with blockchain exclusions
+    # ==============================================================================
     org_auditor = PredefineRole(
-        '6', gettext_noop('OrgAuditor'), Scope.org, auditor_perms
+        '6', gettext_noop('OrgAuditor'), Scope.org,
+        legacy_role_blockchain_exclude_perms, 'exclude'  # EXCLUDE blockchain access
     )
+    # ==============================================================================
     org_user = PredefineRole(
         '7', gettext_noop('OrgUser'), Scope.org, user_perms
     )

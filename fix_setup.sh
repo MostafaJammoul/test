@@ -229,10 +229,10 @@ server {
     ssl_certificate ${CURRENT_DIR}/data/certs/mtls/server.crt;
     ssl_certificate_key ${CURRENT_DIR}/data/certs/mtls/server.key;
 
-    # Client certificate verification (mTLS)
+    # Client certificate verification (mTLS) - SECURITY HARDENING
     ssl_client_certificate ${CURRENT_DIR}/data/certs/mtls/internal-ca.crt;
     ssl_crl ${CURRENT_DIR}/data/certs/mtls/internal-ca.crl;
-    ssl_verify_client optional;  # Set to 'on' to enforce mTLS
+    ssl_verify_client on;  # ENFORCE mTLS - client certificate REQUIRED
     ssl_verify_depth 2;
 
     # SSL settings

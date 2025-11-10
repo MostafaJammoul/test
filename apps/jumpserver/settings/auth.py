@@ -280,9 +280,19 @@ AUTH_BACKEND_OAUTH2 = 'authentication.backends.oauth2.OAuth2Backend'
 AUTH_BACKEND_TEMP_TOKEN = 'authentication.backends.token.TempTokenAuthBackend'
 AUTH_BACKEND_CUSTOM = 'authentication.backends.custom.CustomAuthBackend'
 AUTH_BACKEND_PASSKEY = 'authentication.backends.passkey.PasskeyAuthBackend'
+# ==============================================================================
+# BLOCKCHAIN CHAIN OF CUSTODY - mTLS AUTHENTICATION BACKEND
+# ==============================================================================
+AUTH_BACKEND_MTLS = 'authentication.backends.mtls.MTLSAuthBackend'
+# ==============================================================================
 AUTHENTICATION_BACKENDS = [
     # 只做权限校验
     RBAC_BACKEND,
+    # ==============================================================================
+    # mTLS Certificate Authentication (BLOCKCHAIN CUSTOMIZATION - ADDED)
+    # ==============================================================================
+    AUTH_BACKEND_MTLS,  # Certificate-based authentication (checked FIRST)
+    # ==============================================================================
     # 密码形式
     AUTH_BACKEND_MODEL, AUTH_BACKEND_PUBKEY, AUTH_BACKEND_LDAP, AUTH_BACKEND_LDAP_HA, AUTH_BACKEND_RADIUS,
     # 跳转形式

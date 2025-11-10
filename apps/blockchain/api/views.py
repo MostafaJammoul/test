@@ -23,12 +23,66 @@ from django_filters.rest_framework import DjangoFilterBackend
 from common.permissions import IsValidUser
 from rbac.permissions import RBACPermission
 from orgs.mixins.api import OrgBulkModelViewSet
-from ..models import Investigation, Evidence, BlockchainTransaction, GUIDMapping
+from ..models import (
+    Investigation, Evidence, BlockchainTransaction, GUIDMapping,
+    Tag, InvestigationTag, InvestigationNote, InvestigationActivity
+)
 from ..services.guid_resolver import GUIDResolver
 from ..services.archive_service import ArchiveService
-from .serializers import InvestigationSerializer, EvidenceSerializer, BlockchainTransactionSerializer
+from .serializers import (
+    InvestigationSerializer, EvidenceSerializer, BlockchainTransactionSerializer,
+    TagSerializer, InvestigationTagSerializer, InvestigationNoteSerializer,
+    InvestigationActivitySerializer
+)
 
 logger = logging.getLogger(__name__)
+
+# ==============================================================================
+# BLOCKCHAIN SECURITY HARDENING - ROLE-BASED ACCESS CONTROL
+# ==============================================================================
+# Allowed blockchain role IDs (from rbac.builtin.BuiltinRole)
+ALLOWED_BLOCKCHAIN_ROLE_IDS = [
+    '00000000-0000-0000-0000-000000000001',  # SystemAdmin
+    '00000000-0000-0000-0000-000000000008',  # BlockchainInvestigator
+    '00000000-0000-0000-0000-000000000009',  # BlockchainAuditor
+    '00000000-0000-0000-0000-00000000000A',  # BlockchainCourt
+]
+
+class BlockchainRoleRequiredMixin:
+    """
+    Mixin to restrict blockchain API access to authorized roles only.
+
+    Blocks legacy JumpServer roles (SystemAuditor, OrgAdmin, etc.) from
+    accessing blockchain evidence to maintain chain of custody integrity.
+    """
+
+    def get_queryset(self):
+        """Filter queryset based on user's blockchain role authorization"""
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        # Check if user has an allowed blockchain role
+        from rbac.models import SystemRoleBinding
+
+        user_role_ids = SystemRoleBinding.objects.filter(
+            user=user
+        ).values_list('role_id', flat=True)
+
+        has_blockchain_role = any(
+            role_id in ALLOWED_BLOCKCHAIN_ROLE_IDS
+            for role_id in user_role_ids
+        )
+
+        if not has_blockchain_role:
+            logger.warning(
+                f"User {user.username} attempted to access blockchain API "
+                f"without authorized role. Roles: {list(user_role_ids)}"
+            )
+            # Return empty queryset - user not authorized
+            return queryset.none()
+
+        return queryset
+# ==============================================================================
 
 # Use mock clients in development/testing mode
 if settings.DEBUG or getattr(settings, 'USE_MOCK_BLOCKCHAIN', True):
@@ -75,7 +129,7 @@ else:
 # =============================================================================
 
 
-class InvestigationViewSet(OrgBulkModelViewSet):
+class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
     """
     Investigation Management API
 
@@ -242,7 +296,7 @@ class InvestigationViewSet(OrgBulkModelViewSet):
             )
 
 
-class EvidenceViewSet(OrgBulkModelViewSet):
+class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
     """
     Evidence Management API
 
@@ -530,7 +584,7 @@ class EvidenceViewSet(OrgBulkModelViewSet):
             )
 
 
-class BlockchainTransactionViewSet(OrgBulkModelViewSet):
+class BlockchainTransactionViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
     """
     Blockchain Transaction History API
 
@@ -566,7 +620,7 @@ class BlockchainTransactionViewSet(OrgBulkModelViewSet):
         return queryset.filter(user=user)
 
 
-class GUIDResolverViewSet(viewsets.ViewSet):
+class GUIDResolverViewSet(BlockchainRoleRequiredMixin, viewsets.ViewSet):
     """
     GUID Resolution API (Court Role Only)
 
@@ -662,3 +716,206 @@ class GUIDResolverViewSet(viewsets.ViewSet):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# ==============================================================================
+# UI ENHANCEMENT VIEWSETS (TAGS, NOTES, ACTIVITY TRACKING)
+# ==============================================================================
+
+class TagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
+    """
+    Tag Management API (Admin Only)
+
+    Endpoints:
+        GET    /api/v1/blockchain/tags/           - List all tags
+        POST   /api/v1/blockchain/tags/           - Create tag (admin only)
+        GET    /api/v1/blockchain/tags/{id}/      - Get tag details
+        PUT    /api/v1/blockchain/tags/{id}/      - Update tag (admin only)
+        DELETE /api/v1/blockchain/tags/{id}/      - Delete tag (admin only)
+
+    Permissions:
+        - View: All blockchain roles
+        - Create/Update/Delete: SystemAdmin only
+
+    Use Case:
+        Admin creates categorization tags (crime type, priority, status)
+        with color coding for UI display. Max 3 tags per investigation.
+    """
+    queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+    permission_classes = [IsAuthenticated, RBACPermission]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'category', 'description']
+    filterset_fields = ['category']
+    ordering_fields = ['name', 'category', 'created_at']
+    ordering = ['category', 'name']
+
+    def perform_create(self, serializer):
+        """Auto-assign created_by to current admin user"""
+        serializer.save(created_by=self.request.user)
+
+
+class InvestigationTagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
+    """
+    Investigation Tag Assignment API (Court Role Only)
+
+    Endpoints:
+        GET    /api/v1/blockchain/investigation-tags/           - List all tag assignments
+        POST   /api/v1/blockchain/investigation-tags/           - Assign tag to investigation (Court only)
+        DELETE /api/v1/blockchain/investigation-tags/{id}/      - Remove tag from investigation (Court only)
+
+    Permissions:
+        - View: All blockchain roles
+        - Create/Delete: BlockchainCourt only (admin creates tag library, court assigns to cases)
+
+    Validation:
+        - Max 3 tags per investigation (enforced in serializer)
+        - Cannot assign duplicate tag to same investigation
+
+    Use Case:
+        SystemAdmin creates tag library (predefined tags with colors/categories).
+        BlockchainCourt assigns up to 3 tags from library to each investigation
+        for filtering and organization in the UI dashboard.
+    """
+    queryset = InvestigationTag.objects.all()
+    serializer_class = InvestigationTagSerializer
+    permission_classes = [IsAuthenticated, RBACPermission]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['investigation', 'tag']
+    ordering_fields = ['added_at']
+    ordering = ['-added_at']
+
+    def perform_create(self, serializer):
+        """Auto-assign added_by to current court user"""
+        serializer.save(added_by=self.request.user)
+
+    def get_queryset(self):
+        """Filter tags by investigation if specified"""
+        queryset = super().get_queryset()
+        investigation_id = self.request.query_params.get('investigation_id')
+        if investigation_id:
+            queryset = queryset.filter(investigation_id=investigation_id)
+        return queryset
+
+
+class InvestigationNoteViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
+    """
+    Investigation Notes API (Investigator Create, All Read)
+
+    Endpoints:
+        GET    /api/v1/blockchain/notes/           - List notes (filtered by role)
+        POST   /api/v1/blockchain/notes/           - Add note (investigator only)
+        GET    /api/v1/blockchain/notes/{id}/      - Get note details
+
+    Permissions:
+        - Create: BlockchainInvestigator only
+        - View: All blockchain roles (filtered by investigation access)
+
+    Blockchain Logging:
+        - Note hash (SHA-256) calculated on save
+        - Note logged to blockchain asynchronously
+        - blockchain_tx field updated when confirmed
+
+    Use Case:
+        Investigators add timestamped notes to investigations. Notes are
+        immutably recorded on blockchain for chain of custody audit trail.
+    """
+    queryset = InvestigationNote.objects.all()
+    serializer_class = InvestigationNoteSerializer
+    permission_classes = [IsAuthenticated, RBACPermission]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['investigation', 'created_by']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def perform_create(self, serializer):
+        """
+        Auto-assign created_by and trigger blockchain logging
+        """
+        note = serializer.save(created_by=self.request.user)
+
+        # TODO: Trigger blockchain logging asynchronously
+        # from ..signal_handlers import log_note_to_blockchain
+        # log_note_to_blockchain(note)
+
+    def get_queryset(self):
+        """Filter notes by investigation if specified"""
+        queryset = super().get_queryset()
+        investigation_id = self.request.query_params.get('investigation_id')
+        if investigation_id:
+            queryset = queryset.filter(investigation_id=investigation_id)
+        return queryset
+
+
+class InvestigationActivityViewSet(BlockchainRoleRequiredMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    Investigation Activity Tracking API (Read-Only)
+
+    Endpoints:
+        GET /api/v1/blockchain/activities/           - List activities (filtered by investigation)
+        GET /api/v1/blockchain/activities/{id}/      - Get activity details
+        POST /api/v1/blockchain/activities/{id}/mark_viewed/ - Mark activity as viewed
+
+    Permissions:
+        - View: All blockchain roles
+        - Activity auto-created by system on model changes
+
+    24-Hour Indicator:
+        - is_recent property returns True if activity within last 24 hours
+        - Used for UI badges/indicators
+
+    Use Case:
+        System automatically tracks investigation changes (evidence added,
+        note added, tag changed, status changed). Users can mark activities
+        as viewed to track what's new.
+    """
+    queryset = InvestigationActivity.objects.all()
+    serializer_class = InvestigationActivitySerializer
+    permission_classes = [IsAuthenticated, RBACPermission]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['investigation', 'activity_type', 'performed_by']
+    ordering_fields = ['timestamp']
+    ordering = ['-timestamp']
+
+    def get_queryset(self):
+        """
+        Filter activities and optionally show only recent (24h) or unviewed
+        """
+        queryset = super().get_queryset()
+        investigation_id = self.request.query_params.get('investigation_id')
+        recent_only = self.request.query_params.get('recent_only', 'false').lower() == 'true'
+        unviewed_only = self.request.query_params.get('unviewed_only', 'false').lower() == 'true'
+
+        if investigation_id:
+            queryset = queryset.filter(investigation_id=investigation_id)
+
+        if recent_only:
+            # Filter to last 24 hours
+            twenty_four_hours_ago = timezone.now() - timezone.timedelta(hours=24)
+            queryset = queryset.filter(timestamp__gte=twenty_four_hours_ago)
+
+        if unviewed_only:
+            # Exclude activities already viewed by current user
+            queryset = queryset.exclude(viewed_by=self.request.user)
+
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def mark_viewed(self, request, pk=None):
+        """
+        Mark activity as viewed by current user
+
+        POST /api/v1/blockchain/activities/{id}/mark_viewed/
+
+        Returns:
+            - status: success/error
+            - viewed_by: Updated list of usernames who have viewed
+        """
+        activity = self.get_object()
+        activity.viewed_by.add(request.user)
+
+        return Response({
+            'status': 'success',
+            'activity_id': str(activity.id),
+            'viewed_by': list(activity.viewed_by.values_list('username', flat=True))
+        })

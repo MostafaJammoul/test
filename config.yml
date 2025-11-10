@@ -34,7 +34,7 @@ BOOTSTRAP_TOKEN: jsroot
 DB_ENGINE: postgresql
 DB_HOST: 127.0.0.1
 DB_PORT: 5432
-DB_USER: jumpserver
+DB_USER: jsroot
 DB_PASSWORD: jsroot
 DB_NAME: jumpserver
 
@@ -117,16 +117,20 @@ PKI_CA_LOCALITY: "San Francisco"
 PKI_CA_ORGANIZATION: "JumpServer"
 PKI_CA_ORGANIZATIONAL_UNIT: "Security"
 PKI_CA_VALIDITY_DAYS: 3650  # CA valid for 10 years
-PKI_USER_CERT_VALIDITY_DAYS: 365  # User certs valid for 1 year
+PKI_USER_CERT_VALIDITY_DAYS: 90  # SECURITY HARDENING: 90 days (reduced from 365)
 PKI_AUTO_RENEWAL_ENABLED: true
 PKI_AUTO_RENEWAL_DAYS_BEFORE: 30  # Auto-renew 30 days before expiry
 
-# mTLS Authentication
+# ==============================================================================
+# mTLS Authentication (BLOCKCHAIN SECURITY HARDENING)
+# ==============================================================================
 MTLS_ENABLED: false  # Set to true when nginx mTLS is configured
-MTLS_REQUIRED: false  # Set to true to enforce mTLS for all requests
+MTLS_REQUIRED: false  # Set to true to enforce client certificates (no exceptions)
+MTLS_REQUIRE_MFA: true  # SECURITY HARDENING: Require MFA after mTLS authentication
 MTLS_HEADER_CERT: "X-SSL-Client-Cert"
 MTLS_HEADER_DN: "X-SSL-Client-DN"
 MTLS_HEADER_VERIFY: "X-SSL-Client-Verify"
+# ==============================================================================
 
 # Blockchain Configuration
 BLOCKCHAIN_ENABLED: false  # Set to true when Fabric network is ready

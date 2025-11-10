@@ -4,10 +4,13 @@
 Signal Handlers for Blockchain Operations
 Automatically logs blockchain operations to audit trail
 """
-from django.db.models.signals import post_save, pre_delete
+from django.db.models.signals import post_save, pre_delete, post_delete
 from django.dispatch import receiver
 from audits.models import OperateLog
-from .models import BlockchainTransaction, Evidence, Investigation
+from .models import (
+    BlockchainTransaction, Evidence, Investigation,
+    InvestigationNote, InvestigationTag, InvestigationActivity
+)
 
 
 @receiver(post_save, sender=BlockchainTransaction)
@@ -63,3 +66,69 @@ def log_investigation_status_change(sender, instance, created, **kwargs):
                     is_success=True,
                     detail=f'Investigation {instance.case_number} status changed to {instance.status}'
                 )
+
+
+# ==============================================================================
+# UI ENHANCEMENT SIGNALS - AUTOMATIC ACTIVITY TRACKING
+# ==============================================================================
+
+@receiver(post_save, sender=Evidence)
+def track_evidence_added(sender, instance, created, **kwargs):
+    """Automatically create activity when evidence is added"""
+    if created:
+        InvestigationActivity.objects.create(
+            investigation=instance.investigation,
+            activity_type='evidence_added',
+            description=f'Evidence file "{instance.file_name}" was added to the investigation',
+            performed_by=instance.uploaded_by
+        )
+
+
+@receiver(post_save, sender=InvestigationNote)
+def track_note_added(sender, instance, created, **kwargs):
+    """Automatically create activity when note is added"""
+    if created:
+        InvestigationActivity.objects.create(
+            investigation=instance.investigation,
+            activity_type='note_added',
+            description=f'Investigation note was added by {instance.created_by.username if instance.created_by else "Unknown"}',
+            performed_by=instance.created_by
+        )
+
+
+@receiver(post_save, sender=InvestigationTag)
+def track_tag_added(sender, instance, created, **kwargs):
+    """Automatically create activity when tag is assigned"""
+    if created:
+        InvestigationActivity.objects.create(
+            investigation=instance.investigation,
+            activity_type='tag_changed',
+            description=f'Tag "{instance.tag.name}" was added to the investigation',
+            performed_by=instance.added_by
+        )
+
+
+@receiver(post_delete, sender=InvestigationTag)
+def track_tag_removed(sender, instance, **kwargs):
+    """Automatically create activity when tag is removed"""
+    InvestigationActivity.objects.create(
+        investigation=instance.investigation,
+        activity_type='tag_changed',
+        description=f'Tag "{instance.tag.name}" was removed from the investigation',
+        performed_by=None  # No user context in post_delete, could store in request context
+    )
+
+
+@receiver(post_save, sender=Investigation)
+def track_investigation_status_change_activity(sender, instance, created, **kwargs):
+    """Track investigation status changes as activity"""
+    if not created and 'status' in kwargs.get('update_fields', []):
+        user = instance.archived_by if instance.status == 'archived' else instance.reopened_by
+        action = 'archived' if instance.status == 'archived' else 'reopened'
+
+        InvestigationActivity.objects.create(
+            investigation=instance,
+            activity_type='status_changed',
+            description=f'Investigation was {action}',
+            performed_by=user
+        )

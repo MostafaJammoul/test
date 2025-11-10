@@ -138,3 +138,121 @@ class GUIDMapping(models.Model):
 
     def __str__(self):
         return f"GUID: {self.guid[:16]}... → {self.user.username}"
+
+
+# ==============================================================================
+# UI ENHANCEMENTS - Tags, Notes, Activity Tracking
+# ==============================================================================
+
+class Tag(models.Model):
+    """Case categorization tags (created by admin only)"""
+
+    TAG_CATEGORY_CHOICES = (
+        ('crime_type', _('Crime Type')),
+        ('priority', _('Priority')),
+        ('status', _('Status')),
+    )
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    name = models.CharField(max_length=100, unique=True, verbose_name=_("Tag Name"))
+    category = models.CharField(max_length=50, choices=TAG_CATEGORY_CHOICES, default='crime_type', verbose_name=_("Category"))
+    color = models.CharField(max_length=7, default='#3B82F6', verbose_name=_("Color (Hex)"))
+    description = models.TextField(blank=True, verbose_name=_("Description"))
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='tags_created', verbose_name=_("Created By"))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
+
+    class Meta:
+        db_table = 'blockchain_tag'
+        verbose_name = _("Tag")
+        verbose_name_plural = _("Tags")
+        ordering = ['category', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.category})"
+
+
+class InvestigationTag(models.Model):
+    """Many-to-many relationship between Investigation and Tag (max 3 tags per investigation)"""
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    investigation = models.ForeignKey(Investigation, on_delete=models.CASCADE, related_name='investigation_tags')
+    tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name='tagged_investigations')
+    added_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name=_("Added By"))
+    added_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Added At"))
+
+    class Meta:
+        db_table = 'blockchain_investigation_tag'
+        unique_together = [('investigation', 'tag')]
+        verbose_name = _("Investigation Tag")
+        verbose_name_plural = _("Investigation Tags")
+
+    def __str__(self):
+        return f"{self.investigation.case_number} - {self.tag.name}"
+
+
+class InvestigationNote(models.Model):
+    """Investigator notes logged on blockchain"""
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    investigation = models.ForeignKey(Investigation, on_delete=models.CASCADE, related_name='notes', verbose_name=_("Investigation"))
+    content = models.TextField(verbose_name=_("Note Content"))
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='investigation_notes', verbose_name=_("Created By"))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
+    blockchain_tx = models.ForeignKey(BlockchainTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='notes', verbose_name=_("Blockchain Transaction"))
+    note_hash = models.CharField(max_length=64, verbose_name=_("Note Hash (SHA-256)"))
+
+    class Meta:
+        db_table = 'blockchain_investigation_note'
+        verbose_name = _("Investigation Note")
+        verbose_name_plural = _("Investigation Notes")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Note by {self.created_by} on {self.investigation.case_number}"
+
+    def save(self, *args, **kwargs):
+        if not self.note_hash:
+            # Calculate hash of note content for blockchain verification
+            self.note_hash = hashlib.sha256(self.content.encode()).hexdigest()
+        super().save(*args, **kwargs)
+
+
+class InvestigationActivity(models.Model):
+    """Track investigation activity for UI notifications (last 24 hours indicator)"""
+
+    ACTIVITY_TYPE_CHOICES = (
+        ('evidence_added', _('Evidence Added')),
+        ('note_added', _('Note Added')),
+        ('tag_changed', _('Tag Changed')),
+        ('status_changed', _('Status Changed')),
+        ('assigned', _('Investigator Assigned')),
+    )
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    investigation = models.ForeignKey(Investigation, on_delete=models.CASCADE, related_name='activities', verbose_name=_("Investigation"))
+    activity_type = models.CharField(max_length=20, choices=ACTIVITY_TYPE_CHOICES, verbose_name=_("Activity Type"))
+    description = models.TextField(verbose_name=_("Description"))
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='activities_performed', verbose_name=_("Performed By"))
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name=_("Timestamp"))
+    viewed_by = models.ManyToManyField(User, related_name='viewed_activities', blank=True, verbose_name=_("Viewed By"))
+
+    class Meta:
+        db_table = 'blockchain_investigation_activity'
+        verbose_name = _("Investigation Activity")
+        verbose_name_plural = _("Investigation Activities")
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['investigation', '-timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.activity_type} on {self.investigation.case_number} at {self.timestamp}"
+
+    @property
+    def is_recent(self):
+        """Check if activity occurred in last 24 hours"""
+        return (timezone.now() - self.timestamp).total_seconds() < 86400
+
+# ==============================================================================
+# END UI ENHANCEMENTS
+# ==============================================================================

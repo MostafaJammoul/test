@@ -40,6 +40,10 @@ urlpatterns = [
     path('mfa/challenge/', api.MFAChallengeVerifyApi.as_view(), name='mfa-challenge'),
     path('mfa/select/', api.MFASendCodeApi.as_view(), name='mfa-select'),
     path('mfa/send-code/', api.MFASendCodeApi.as_view(), name='mfa-send-code'),
+    # Blockchain Chain of Custody: MFA Setup/Enrollment
+    path('mfa/setup/', api.MFASetupView.as_view(), name='mfa-setup'),
+    path('mfa/status/', api.MFAStatusView.as_view(), name='mfa-status'),
+    path('mfa/verify-totp/', api.MFAVerifyView.as_view(), name='mfa-verify-totp'),
     path('password/reset-code/', api.UserResetPasswordSendCodeApi.as_view(), name='reset-password-code'),
     path('password/verify/', api.UserPasswordVerifyApi.as_view(), name='user-password-verify'),
     path('login-confirm-ticket/status/', api.TicketStatusApi.as_view(), name='login-confirm-ticket-status'),

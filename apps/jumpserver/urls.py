@@ -7,6 +7,7 @@ import uuid
 import private_storage.urls
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.i18n import JavaScriptCatalog
 
@@ -31,6 +32,10 @@ resource_api = [
     path('rbac/', include('rbac.urls.api_urls', namespace='api-rbac')),
     path('labels/', include('labels.urls', namespace='api-label')),
     path('reports/', include('reports.urls.api_urls', namespace='api-reports')),
+    # Blockchain Chain of Custody API
+    path('blockchain/', include('blockchain.api.urls', namespace='api-blockchain')),
+    # PKI Certificate Management API
+    path('pki/', include('pki.api.urls', namespace='api-pki')),
 ]
 
 api_v1 = resource_api + [
@@ -60,6 +65,8 @@ if settings.XPACK_ENABLED:
 
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
+    # Django Admin Interface
+    path('admin/', admin.site.urls),
     path('api/v1/', include(api_v1)),
     path('api/health/', api.HealthCheckView.as_view(), name="health"),
     path('api/v1/health/', api.HealthCheckView.as_view(), name="health_v1"),

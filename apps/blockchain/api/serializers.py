@@ -5,7 +5,10 @@ Blockchain API Serializers
 """
 from rest_framework import serializers
 from django.utils import timezone
-from ..models import Investigation, Evidence, BlockchainTransaction, GUIDMapping
+from ..models import (
+    Investigation, Evidence, BlockchainTransaction, GUIDMapping,
+    Tag, InvestigationTag, InvestigationNote, InvestigationActivity
+)
 
 
 class InvestigationSerializer(serializers.ModelSerializer):
@@ -75,3 +78,104 @@ class BlockchainTransactionSerializer(serializers.ModelSerializer):
 
     def get_is_anonymous(self, obj):
         return obj.user_guid is not None
+
+
+class TagSerializer(serializers.ModelSerializer):
+    """
+    Tag serializer (admin-created only)
+    """
+    created_by_display = serializers.CharField(source='created_by.username', read_only=True)
+    tagged_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Tag
+        fields = [
+            'id', 'name', 'category', 'color', 'description',
+            'created_by', 'created_by_display', 'created_at', 'tagged_count'
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at']
+
+    def get_tagged_count(self, obj):
+        """Count how many investigations use this tag"""
+        return obj.tagged_investigations.count()
+
+
+class InvestigationTagSerializer(serializers.ModelSerializer):
+    """
+    Investigation-Tag relationship serializer
+    Enforces max 3 tags per investigation
+    """
+    tag_name = serializers.CharField(source='tag.name', read_only=True)
+    tag_color = serializers.CharField(source='tag.color', read_only=True)
+    tag_category = serializers.CharField(source='tag.category', read_only=True)
+    added_by_display = serializers.CharField(source='added_by.username', read_only=True)
+
+    class Meta:
+        model = InvestigationTag
+        fields = [
+            'id', 'investigation', 'tag', 'tag_name', 'tag_color', 'tag_category',
+            'added_by', 'added_by_display', 'added_at'
+        ]
+        read_only_fields = ['id', 'added_by', 'added_at']
+
+    def validate(self, data):
+        """Enforce max 3 tags per investigation"""
+        investigation = data.get('investigation')
+        tag = data.get('tag')
+
+        # Check if tag is already assigned
+        if InvestigationTag.objects.filter(investigation=investigation, tag=tag).exists():
+            raise serializers.ValidationError("This tag is already assigned to the investigation.")
+
+        # Check max 3 tags limit
+        current_tag_count = InvestigationTag.objects.filter(investigation=investigation).count()
+        if current_tag_count >= 3:
+            raise serializers.ValidationError(
+                "Maximum 3 tags allowed per investigation. Remove an existing tag first."
+            )
+
+        return data
+
+
+class InvestigationNoteSerializer(serializers.ModelSerializer):
+    """
+    Investigation note serializer (blockchain-logged)
+    """
+    created_by_display = serializers.CharField(source='created_by.username', read_only=True)
+    blockchain_tx_hash = serializers.CharField(source='blockchain_tx.transaction_hash', read_only=True, allow_null=True)
+    is_blockchain_verified = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InvestigationNote
+        fields = [
+            'id', 'investigation', 'content', 'note_hash',
+            'created_by', 'created_by_display', 'created_at',
+            'blockchain_tx', 'blockchain_tx_hash', 'is_blockchain_verified'
+        ]
+        read_only_fields = ['id', 'note_hash', 'created_by', 'created_at', 'blockchain_tx']
+
+    def get_is_blockchain_verified(self, obj):
+        """Check if note has been logged to blockchain"""
+        return obj.blockchain_tx is not None
+
+
+class InvestigationActivitySerializer(serializers.ModelSerializer):
+    """
+    Investigation activity serializer (24-hour tracking)
+    """
+    performed_by_display = serializers.CharField(source='performed_by.username', read_only=True)
+    is_recent = serializers.BooleanField(read_only=True)
+    viewed_by_usernames = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InvestigationActivity
+        fields = [
+            'id', 'investigation', 'activity_type', 'description',
+            'performed_by', 'performed_by_display', 'timestamp',
+            'is_recent', 'viewed_by', 'viewed_by_usernames'
+        ]
+        read_only_fields = ['id', 'performed_by', 'timestamp']
+
+    def get_viewed_by_usernames(self, obj):
+        """Get list of usernames who have viewed this activity"""
+        return list(obj.viewed_by.values_list('username', flat=True))
