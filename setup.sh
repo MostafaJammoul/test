@@ -52,6 +52,24 @@ log_step() {
     echo -e "${CYAN}========================================${NC}"
 }
 
+# Error handler
+error_exit() {
+    log_error "Setup failed at line $1"
+    log_error "Check the output above for error details"
+    log_info "You can try running the script again or fix the issue manually"
+    exit 1
+}
+
+# Set up error trap
+trap 'error_exit $LINENO' ERR
+
+# Installation tracking
+INSTALLED_COMPONENTS=()
+
+track_installation() {
+    INSTALLED_COMPONENTS+=("$1")
+}
+
 # =============================================================================
 # 0. CONFIRMATION PROMPT (FRESH START WARNING)
 # =============================================================================
@@ -86,6 +104,58 @@ if [ "$FINAL_CONFIRM" != "DELETE EVERYTHING" ]; then
 fi
 
 log_success "Confirmation received. Starting fresh installation..."
+
+# =============================================================================
+# 0.5. CHECK SUDO PRIVILEGES AND SYSTEM REQUIREMENTS
+# =============================================================================
+log_step "STEP 0.5: Checking system requirements"
+
+# Check if user has sudo privileges
+if ! sudo -n true 2>/dev/null; then
+    log_info "Testing sudo access..."
+    sudo -v || {
+        log_error "This script requires sudo privileges. Please run with a user that has sudo access."
+        exit 1
+    }
+fi
+log_success "Sudo privileges verified"
+
+# Check available disk space (need at least 5GB)
+AVAILABLE_SPACE=$(df -BG . | tail -1 | awk '{print $4}' | sed 's/G//')
+if [ "$AVAILABLE_SPACE" -lt 5 ]; then
+    log_warning "Low disk space: ${AVAILABLE_SPACE}GB available. Recommended: 5GB+ free"
+    log_warning "Installation may fail if disk space runs out"
+else
+    log_success "Disk space: ${AVAILABLE_SPACE}GB available"
+fi
+
+# Check if critical ports are available
+log_info "Checking port availability..."
+PORTS_TO_CHECK=(5432 6379 8080 3000 80 443)
+PORTS_IN_USE=()
+
+for PORT in "${PORTS_TO_CHECK[@]}"; do
+    if sudo lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1 || sudo netstat -tuln 2>/dev/null | grep -q ":$PORT "; then
+        PORTS_IN_USE+=($PORT)
+        log_warning "Port $PORT is already in use"
+    fi
+done
+
+if [ ${#PORTS_IN_USE[@]} -gt 0 ]; then
+    log_warning "The following ports are in use: ${PORTS_IN_USE[*]}"
+    log_warning "This may cause conflicts. Services using these ports:"
+    for PORT in "${PORTS_IN_USE[@]}"; do
+        log_info "  Port $PORT: $(sudo lsof -Pi :$PORT -sTCP:LISTEN 2>/dev/null | tail -n +2 | awk '{print $1}' | sort -u | tr '\n' ' ' || echo 'unknown')"
+    done
+    echo ""
+    read -p "Continue anyway? (yes/no): " PORT_CONTINUE
+    if [ "$PORT_CONTINUE" != "yes" ]; then
+        log_info "Installation cancelled. Please free up the required ports first."
+        exit 0
+    fi
+fi
+
+log_success "System requirements checked"
 
 # =============================================================================
 # 1. PURGE ALL DATABASES AND CLEAN ENVIRONMENT
@@ -196,6 +266,14 @@ log_success "Environment purged successfully!"
 # =============================================================================
 log_step "STEP 2: Checking prerequisites"
 
+# Install diagnostic tools (needed for port checking)
+if ! command -v lsof &> /dev/null || ! command -v netstat &> /dev/null; then
+    log_info "Installing diagnostic tools (lsof, net-tools)..."
+    sudo apt update
+    sudo apt install -y lsof net-tools
+    log_success "Diagnostic tools installed"
+fi
+
 # Check Python version
 if ! command -v python3 &> /dev/null; then
     log_info "Python 3+ not found. Installing..."
@@ -203,11 +281,46 @@ if ! command -v python3 &> /dev/null; then
     sudo apt install -y software-properties-common
     sudo add-apt-repository -y ppa:deadsnakes/ppa
     sudo apt update
-    sudo apt install -y python3 python3-venv python3-dev
+    sudo apt install -y python3 python3-venv python3-pip python3-dev
+    log_success "Python 3 installed"
+else
+    log_success "Python 3 already installed"
+fi
+
+# Ensure python3-venv and python3-pip are installed
+if ! python3 -m venv --help &> /dev/null; then
+    log_info "Installing python3-venv..."
+    sudo apt install -y python3-venv
+    log_success "python3-venv installed"
+fi
+
+if ! python3 -m pip --version &> /dev/null; then
+    log_info "Installing python3-pip..."
+    sudo apt install -y python3-pip
+    log_success "python3-pip installed"
 fi
 
 PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 log_success "Python version: $PYTHON_VERSION"
+
+# Check Python version meets minimum requirement (3.8+)
+PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d'.' -f1)
+PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d'.' -f2)
+
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 8 ]); then
+    log_warning "Python version $PYTHON_VERSION is below 3.8. Upgrading to Python 3.11..."
+    sudo apt update
+    sudo apt install -y software-properties-common
+    sudo add-apt-repository -y ppa:deadsnakes/ppa
+    sudo apt update
+    sudo apt install -y python3.11 python3.11-venv python3.11-pip python3.11-dev
+
+    # Update python3 alternative to point to python3.11
+    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+
+    PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    log_success "Python upgraded to version: $PYTHON_VERSION"
+fi
 
 # Check if we're in the right directory
 if [ ! -f "pyproject.toml" ]; then
@@ -245,6 +358,42 @@ sudo apt install -y \
     wget
 
 log_success "System dependencies installed"
+
+# =============================================================================
+# 3.5. INSTALL NODE.JS AND NPM (FOR FRONTEND)
+# =============================================================================
+log_step "STEP 3.5: Installing Node.js and npm"
+
+if ! command -v node &> /dev/null; then
+    log_info "Node.js not found. Installing Node.js 18.x LTS..."
+
+    # Remove any existing NodeSource repository
+    sudo rm -f /etc/apt/sources.list.d/nodesource.list
+
+    # Install Node.js 18.x from NodeSource
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt install -y nodejs
+
+    log_success "Node.js installed"
+else
+    log_success "Node.js already installed"
+fi
+
+NODE_VERSION=$(node --version 2>&1)
+NPM_VERSION=$(npm --version 2>&1)
+log_success "Node.js version: $NODE_VERSION"
+log_success "npm version: $NPM_VERSION"
+
+# Verify minimum versions
+NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_MAJOR" -lt 16 ]; then
+    log_warning "Node.js version is below 16.x. Upgrading recommended."
+    log_info "Upgrading Node.js to 18.x LTS..."
+    sudo rm -f /etc/apt/sources.list.d/nodesource.list
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt install -y nodejs
+    log_success "Node.js upgraded"
+fi
 
 # =============================================================================
 # 4. INSTALL AND START POSTGRESQL
@@ -323,10 +472,17 @@ fi
 # =============================================================================
 log_step "STEP 6: Creating virtual environment"
 
-log_info "Creating Python 3 virtual environment..."
-#python3 -m venv venv
+if [ ! -d "venv" ]; then
+    log_info "Creating Python 3 virtual environment..."
+    python3 -m venv venv
+    log_success "Virtual environment created"
+else
+    log_success "Virtual environment already exists"
+fi
+
+log_info "Activating virtual environment..."
 source venv/bin/activate
-log_success "Virtual environment created and activated"
+log_success "Virtual environment activated"
 
 # =============================================================================
 # 7. UPGRADE PIP AND INSTALL DEPENDENCIES
@@ -594,6 +750,45 @@ cd ..
 log_success "Static files collected"
 
 # =============================================================================
+# 15.5. INSTALL FRONTEND DEPENDENCIES
+# =============================================================================
+log_step "STEP 15.5: Installing frontend dependencies"
+
+if [ -d "frontend" ]; then
+    cd frontend
+
+    if [ ! -d "node_modules" ]; then
+        log_info "Installing frontend npm packages (this may take 5-10 minutes)..."
+        npm install
+        log_success "Frontend dependencies installed"
+    else
+        log_success "Frontend node_modules already exists"
+        log_info "Checking for updates..."
+        npm install
+        log_success "Frontend dependencies verified/updated"
+    fi
+
+    # Verify critical dependencies
+    if [ -f "package.json" ]; then
+        log_info "Frontend package.json found"
+        if grep -q "react" package.json; then
+            log_success "React dependency verified"
+        fi
+        if grep -q "vite" package.json; then
+            log_success "Vite build tool verified"
+        fi
+    fi
+
+    cd ..
+else
+    log_warning "Frontend directory not found - frontend installation skipped"
+    log_info "If you have a separate frontend, install dependencies manually:"
+    log_info "  cd frontend && npm install"
+fi
+
+log_success "Frontend setup complete"
+
+# =============================================================================
 # 16. CREATE SUPERUSER (AUTOMATIC)
 # =============================================================================
 log_step "STEP 16: Creating superuser account automatically"
@@ -630,9 +825,24 @@ python manage.py createsuperuser --noinput 2>/dev/null || {
     log_info "You can create it manually with: cd /opt/truefypjs/apps && python manage.py createsuperuser"
 }
 
-# Verify superuser was created
+# Verify superuser was created and fix is_superuser/is_staff flags
 if python manage.py shell -c "from users.models import User; print(User.objects.filter(username='$SUPERUSER_NAME').exists())" 2>/dev/null | grep -q "True"; then
-    log_success "Superuser '$SUPERUSER_NAME' ready"
+    log_success "Superuser '$SUPERUSER_NAME' exists"
+
+    # Explicitly set is_superuser and is_staff flags (in case migration was missing them)
+    log_info "Ensuring superuser flags are set correctly..."
+    python manage.py shell -c "
+from users.models import User
+user = User.objects.get(username='$SUPERUSER_NAME')
+user.is_superuser = True
+user.is_staff = True
+user.role = 'Admin'
+user.is_active = True
+user.save()
+print(f'Updated {user.username}: is_superuser={user.is_superuser}, is_staff={user.is_staff}, role={user.role}')
+" 2>/dev/null || log_warning "Could not update superuser flags"
+
+    log_success "Superuser '$SUPERUSER_NAME' configured correctly"
 else
     log_error "Superuser creation verification failed"
 fi
@@ -807,34 +1017,132 @@ echo "  - nginx errors: /var/log/nginx/error.log"
 echo ""
 
 log_info "Next Steps:"
-echo "  1. Start the backend server (see commands above)"
+echo "  1. Start BOTH backend AND frontend servers:"
 echo ""
-echo "  2. Access the application:"
-echo "     - Password Login (Frontend): http://localhost:3000/login"
-echo "       Use username: $SUPERUSER_NAME, password: $SUPERUSER_PASSWORD"
-echo "     - Django Admin: http://localhost:8080/admin"
-echo "       Same credentials"
-echo "     - mTLS Login (nginx): https://localhost (requires certificate import)"
+echo "     OPTION A - Quick Start (Recommended):"
+echo "       ./start_services.sh"
 echo ""
-echo "  3. First login workflow:"
+echo "     OPTION B - Manual Start (two separate terminals):"
+echo "       Terminal 1 - Backend:"
+echo "         source venv/bin/activate"
+echo "         cd apps && python manage.py runserver 0.0.0.0:8080"
+echo ""
+echo "       Terminal 2 - Frontend:"
+echo "         cd frontend && npm run dev"
+echo ""
+echo "  2. Access the application at http://192.168.148.154:3000"
+echo "     (or http://localhost:3000 if accessing locally)"
+echo ""
+echo "  3. Login with superuser credentials:"
+echo "     - Username: $SUPERUSER_NAME"
+echo "     - Password: $SUPERUSER_PASSWORD"
+echo ""
+echo "  4. First login workflow:"
 echo "     a) Login with password → Redirected to MFA setup"
 echo "     b) Scan QR code with Google Authenticator/Authy"
 echo "     c) Verify 6-digit code → Access dashboard"
 echo ""
-echo "  4. Manage users and certificates:"
-echo "     - Create users in Django Admin"
-echo "     - Download certificates: Admin → PKI → Certificates"
-echo "     - Distribute .p12 files to users"
+echo "  5. Admin Dashboard Features (as superuser):"
+echo "     - User Management: Create/modify users, assign roles"
+echo "     - Certificate Management: Download user certificates (.p12 files)"
+echo "     - Tag Management: Create/modify investigation tags"
+echo "     - Investigation Management: Create, archive, reopen investigations"
+echo "     - Evidence Management: Upload evidence, verify blockchain records"
 echo ""
-echo "  5. Test blockchain features:"
-echo "     - Create investigations"
-echo "     - Upload evidence"
-echo "     - View blockchain transactions"
+echo "  6. Other Access Points:"
+echo "     - Django Admin: http://192.168.148.154:8080/admin"
+echo "     - API Docs: http://192.168.148.154:8080/api/docs"
+echo "     - mTLS Login (nginx): https://localhost (requires certificate import)"
 echo ""
 
-log_warning "Starting backend server in 5 seconds... (Press Ctrl+C to cancel)"
-sleep 5
-
-log_info "Starting JumpServer backend on http://localhost:8080..."
+log_success "✓ Setup Complete!"
 echo ""
-cd apps && python manage.py runserver 0.0.0.0:8080
+
+# =============================================================================
+# INSTALLATION SUMMARY
+# =============================================================================
+log_step "📋 INSTALLATION SUMMARY"
+
+echo ""
+log_info "System Components Installed:"
+
+# Check and display installed components
+if command -v python3 &> /dev/null; then
+    echo "  ✓ Python $(python3 --version 2>&1 | awk '{print $2}')"
+fi
+
+if command -v node &> /dev/null; then
+    echo "  ✓ Node.js $(node --version)"
+fi
+
+if command -v npm &> /dev/null; then
+    echo "  ✓ npm $(npm --version)"
+fi
+
+if command -v psql &> /dev/null; then
+    echo "  ✓ PostgreSQL $(psql --version | awk '{print $3}')"
+fi
+
+if command -v redis-server &> /dev/null; then
+    echo "  ✓ Redis $(redis-server --version | awk '{print $3}')"
+fi
+
+if command -v nginx &> /dev/null; then
+    echo "  ✓ nginx $(nginx -v 2>&1 | awk '{print $3}')"
+fi
+
+if [ -d "venv" ]; then
+    echo "  ✓ Python virtual environment (venv/)"
+fi
+
+if [ -d "frontend/node_modules" ]; then
+    echo "  ✓ Frontend dependencies (node_modules/)"
+fi
+
+echo ""
+log_info "Database Status:"
+echo "  ✓ Database: $DB_NAME"
+echo "  ✓ User: $DB_USER"
+if PGPASSWORD=$DB_PASSWORD psql -h 127.0.0.1 -U $DB_USER -d $DB_NAME -c '\dt' 2>/dev/null | grep -q 'pki_certificate'; then
+    echo "  ✓ Migrations applied successfully"
+fi
+
+echo ""
+log_info "Services Status:"
+if sudo systemctl is-active --quiet postgresql; then
+    echo "  ✓ PostgreSQL: Running"
+else
+    echo "  ✗ PostgreSQL: Not running"
+fi
+
+if sudo systemctl is-active --quiet redis-server; then
+    echo "  ✓ Redis: Running"
+else
+    echo "  ✗ Redis: Not running"
+fi
+
+if sudo systemctl is-active --quiet nginx; then
+    echo "  ✓ nginx: Running"
+else
+    echo "  ✗ nginx: Not running"
+fi
+
+echo ""
+log_info "Application Status:"
+echo "  ✓ Backend: Ready (not started)"
+echo "  ✓ Frontend: Ready (not started)"
+
+echo ""
+log_warning "⚠️  NEXT STEP: Start both backend and frontend servers"
+echo ""
+log_info "Quick Start:"
+echo "  ./start_services.sh"
+echo ""
+log_info "Or start manually:"
+echo "  Terminal 1: source venv/bin/activate && cd apps && python manage.py runserver 0.0.0.0:8080"
+echo "  Terminal 2: cd frontend && npm run dev"
+echo ""
+
+log_warning "⚠️  REMEMBER: You need to start BOTH backend AND frontend servers!"
+log_info "Run: ./start_services.sh"
+echo ""
