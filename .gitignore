@@ -57,6 +57,7 @@ data/media/
 data/uploads/
 data/static/
 data/certs/
+data/system/
 
 # IP Geolocation Databases (downloaded by setup script)
 apps/common/utils/ip/geoip/*.mmdb

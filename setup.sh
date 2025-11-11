@@ -757,7 +757,27 @@ log_step "STEP 15.3: Downloading IP geolocation databases"
 if [ -f "requirements/static_files.sh" ]; then
     log_info "Downloading GeoIP databases and static files..."
     bash ./requirements/static_files.sh
-    log_success "IP geolocation databases downloaded"
+
+    # Copy databases to data/system directory (primary location Django looks for)
+    log_info "Copying IP databases to data/system/..."
+    mkdir -p data/system
+
+    if [ -f "apps/common/utils/ip/ipip/ipipfree.ipdb" ]; then
+        cp apps/common/utils/ip/ipip/ipipfree.ipdb data/system/
+        log_success "Copied ipipfree.ipdb to data/system/"
+    fi
+
+    if [ -f "apps/common/utils/ip/geoip/GeoLite2-City.mmdb" ]; then
+        cp apps/common/utils/ip/geoip/GeoLite2-City.mmdb data/system/
+        log_success "Copied GeoLite2-City.mmdb to data/system/"
+    fi
+
+    if [ -f "apps/accounts/automations/check_account/leak_passwords.db" ]; then
+        cp apps/accounts/automations/check_account/leak_passwords.db data/system/
+        log_success "Copied leak_passwords.db to data/system/"
+    fi
+
+    log_success "IP geolocation databases downloaded and installed"
 else
     log_warning "requirements/static_files.sh not found - skipping IP database download"
     log_info "You can download them manually later with: bash ./requirements/static_files.sh"
