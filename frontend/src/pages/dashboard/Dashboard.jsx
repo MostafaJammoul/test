@@ -1,65 +1,60 @@
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import Layout from '../../components/layout/Layout';
-import { Link } from 'react-router-dom';
-import Button from '../../components/common/Button';
-import Badge from '../../components/common/Badge';
-import { ROLE_NAMES } from '../../utils/constants';
+import InvestigatorDashboard from './InvestigatorDashboard';
+import AuditorDashboard from './AuditorDashboard';
+import CourtDashboard from './CourtDashboard';
 
+/**
+ * Main Dashboard Router
+ *
+ * Automatically routes users to their role-specific dashboard:
+ * - System Admin → Admin Dashboard (/admin-dashboard)
+ * - Investigator → Investigator Dashboard (assigned cases, full R/W)
+ * - Auditor → Auditor Dashboard (assigned cases, read + notes)
+ * - Court → Court Dashboard (all cases, read-only)
+ */
 export default function Dashboard() {
-  const { user, isAdmin, isInvestigator, isAuditor, isCourt } = useAuth();
-  const primaryRole = user?.system_roles?.[0];
-  const roleName = primaryRole ? ROLE_NAMES[primaryRole.id] : 'Unknown';
+  const { isAdmin, isInvestigator, isAuditor, isCourt, loading } = useAuth();
+  const navigate = useNavigate();
 
-  return (
-    <Layout>
-      <div className="space-y-6">
-        {/* Welcome Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Welcome, {user?.name || user?.username}
-          </h1>
-          <p className="mt-2 text-gray-600">Role: {roleName}</p>
-        </div>
+  useEffect(() => {
+    // Redirect admins to admin dashboard
+    if (!loading && isAdmin()) {
+      navigate('/admin-dashboard', { replace: true });
+    }
+  }, [isAdmin, loading, navigate]);
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link to="/investigations">
-            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-              <h3 className="text-lg font-semibold">View Investigations</h3>
-              <p className="mt-2 text-gray-600">Browse all cases</p>
-            </div>
-          </Link>
-
-          {isCourt() && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold">Create Investigation</h3>
-              <p className="mt-2 text-gray-600">Start new case</p>
-            </div>
-          )}
-
-          {isInvestigator() && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold">Upload Evidence</h3>
-              <p className="mt-2 text-gray-600">Add evidence to case</p>
-            </div>
-          )}
-
-          {isAdmin() && (
-            <Link to="/admin-dashboard">
-              <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-                <h3 className="text-lg font-semibold">Admin Dashboard</h3>
-                <p className="mt-2 text-gray-600">Manage system</p>
-              </div>
-            </Link>
-          )}
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
-          <p className="text-gray-600">Activity feed will appear here</p>
-        </div>
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
-    </Layout>
+    );
+  }
+
+  // Route to role-specific dashboard
+  if (isAdmin()) {
+    // Will redirect to admin dashboard via useEffect
+    return null;
+  } else if (isInvestigator()) {
+    return <InvestigatorDashboard />;
+  } else if (isAuditor()) {
+    return <AuditorDashboard />;
+  } else if (isCourt()) {
+    return <CourtDashboard />;
+  }
+
+  // Fallback for users without blockchain roles
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-gray-900">No Dashboard Available</h2>
+        <p className="mt-2 text-gray-600">
+          You don't have a blockchain role assigned. Please contact your administrator.
+        </p>
+      </div>
+    </div>
   );
 }
