@@ -607,6 +607,34 @@ fi
 cd ..
 
 # =============================================================================
+# 13.5. EXPORT CA CERTIFICATE FOR NGINX
+# =============================================================================
+log_step "STEP 13.5: Exporting CA certificate for nginx mTLS"
+
+cd apps
+
+# Export CA certificate to PEM format for nginx
+log_info "Exporting CA certificate for nginx..."
+if python manage.py export_ca_cert 2>&1 | tee /tmp/ca_export.log; then
+    log_success "CA certificate exported successfully"
+
+    # Copy to nginx certs directory
+    if [ -f "../data/certs/mtls/internal-ca.crt" ]; then
+        log_success "CA certificate available at data/certs/mtls/internal-ca.crt"
+    else
+        log_warning "CA certificate not found at expected location"
+        log_info "mTLS will not work until CA certificate is properly exported"
+    fi
+else
+    log_warning "Failed to export CA certificate"
+    log_info "Check logs: /tmp/ca_export.log"
+    log_info "mTLS will not work until CA certificate is exported"
+    log_info "You can export it manually later with: python manage.py export_ca_cert"
+fi
+
+cd ..
+
+# =============================================================================
 # 14. INSTALL AND CONFIGURE NGINX
 # =============================================================================
 log_step "STEP 14: Installing and configuring nginx"
@@ -645,6 +673,10 @@ upstream jumpserver_backend {
     server 127.0.0.1:8080;
 }
 
+upstream jumpserver_frontend {
+    server 127.0.0.1:3000;
+}
+
 server {
     listen 80;
     server_name _;
@@ -663,14 +695,29 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
-    # mTLS Client Certificate Verification (OPTIONAL - Can be enabled later)
-    # ssl_client_certificate CA_CERT_PATH;
-    # ssl_verify_client optional;
-    # ssl_crl CA_CRL_PATH;
+    # mTLS Client Certificate Verification (OPTIONAL - enabled for non-admin users)
+    ssl_client_certificate CA_CERT_PATH;
+    ssl_verify_client optional;
+    ssl_crl CA_CRL_PATH;
 
     # Proxy settings
     client_max_body_size 5G;
 
+    # Django admin - allows password authentication (no certificate required)
+    location /admin/ {
+        proxy_pass http://jumpserver_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Pass client certificate info (will be NONE for admin password login)
+        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+        proxy_set_header X-SSL-Client-Serial $ssl_client_serial;
+        proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
+    }
+
+    # API endpoints - proxies to backend
     location /api/ {
         proxy_pass http://jumpserver_backend;
         proxy_set_header Host $host;
@@ -678,12 +725,13 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # Pass client certificate DN to backend (when mTLS enabled)
-        proxy_set_header X-Client-Cert-DN $ssl_client_s_dn;
-        proxy_set_header X-Client-Cert-Serial $ssl_client_serial;
-        proxy_set_header X-Client-Cert-Verify $ssl_client_verify;
+        # Pass client certificate info to backend for mTLS authentication
+        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+        proxy_set_header X-SSL-Client-Serial $ssl_client_serial;
+        proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
     }
 
+    # WebSocket support
     location /ws/ {
         proxy_pass http://jumpserver_backend;
         proxy_http_version 1.1;
@@ -692,24 +740,44 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # Pass client certificate info
+        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+        proxy_set_header X-SSL-Client-Serial $ssl_client_serial;
+        proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
     }
 
+    # Static files (Django collectstatic)
     location /static/ {
         alias STATIC_PATH;
         expires 30d;
     }
 
+    # Media files (user uploads)
     location /media/ {
         alias MEDIA_PATH;
         expires 7d;
     }
 
+    # Frontend - React app (port 3000)
+    # This proxies to the Vite dev server during development
+    # In production, serve built static files instead
     location / {
-        proxy_pass http://jumpserver_backend;
+        proxy_pass http://jumpserver_frontend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket support for Vite HMR (Hot Module Replacement)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Pass client certificate info
+        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+        proxy_set_header X-SSL-Client-Serial $ssl_client_serial;
+        proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
     }
 }
 NGINXEOF
