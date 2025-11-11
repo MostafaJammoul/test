@@ -615,12 +615,13 @@ cd apps
 
 # Export CA certificate to PEM format for nginx
 log_info "Exporting CA certificate for nginx..."
-if python manage.py export_ca_cert 2>&1 | tee /tmp/ca_export.log; then
+if python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt --force 2>&1 | tee /tmp/ca_export.log; then
     log_success "CA certificate exported successfully"
 
-    # Copy to nginx certs directory
+    # Verify file was created
     if [ -f "../data/certs/mtls/internal-ca.crt" ]; then
         log_success "CA certificate available at data/certs/mtls/internal-ca.crt"
+        log_info "Note: CRL (Certificate Revocation List) not configured - certificate revocation not yet implemented"
     else
         log_warning "CA certificate not found at expected location"
         log_info "mTLS will not work until CA certificate is properly exported"
@@ -629,7 +630,7 @@ else
     log_warning "Failed to export CA certificate"
     log_info "Check logs: /tmp/ca_export.log"
     log_info "mTLS will not work until CA certificate is exported"
-    log_info "You can export it manually later with: python manage.py export_ca_cert"
+    log_info "You can export it manually later with: python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt --force"
 fi
 
 cd ..
@@ -698,7 +699,7 @@ server {
     # mTLS Client Certificate Verification (OPTIONAL - enabled for non-admin users)
     ssl_client_certificate CA_CERT_PATH;
     ssl_verify_client optional;
-    ssl_crl CA_CRL_PATH;
+    # ssl_crl CA_CRL_PATH;  # Disabled - CRL not implemented yet
 
     # Proxy settings
     client_max_body_size 5G;
@@ -786,7 +787,6 @@ NGINXEOF
 sudo sed -i "s|SSL_CERT_PATH|$CURRENT_DIR/data/certs/mtls/server.crt|g" "$NGINX_CONF"
 sudo sed -i "s|SSL_KEY_PATH|$CURRENT_DIR/data/certs/mtls/server.key|g" "$NGINX_CONF"
 sudo sed -i "s|CA_CERT_PATH|$CURRENT_DIR/data/certs/mtls/internal-ca.crt|g" "$NGINX_CONF"
-sudo sed -i "s|CA_CRL_PATH|$CURRENT_DIR/data/certs/mtls/internal-ca.crl|g" "$NGINX_CONF"
 sudo sed -i "s|STATIC_PATH|$CURRENT_DIR/data/static/|g" "$NGINX_CONF"
 sudo sed -i "s|MEDIA_PATH|$CURRENT_DIR/data/media/|g" "$NGINX_CONF"
 
