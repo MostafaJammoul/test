@@ -750,6 +750,20 @@ cd ..
 log_success "Static files collected"
 
 # =============================================================================
+# 15.3. DOWNLOAD IP GEOLOCATION DATABASES
+# =============================================================================
+log_step "STEP 15.3: Downloading IP geolocation databases"
+
+if [ -f "requirements/static_files.sh" ]; then
+    log_info "Downloading GeoIP databases and static files..."
+    bash ./requirements/static_files.sh
+    log_success "IP geolocation databases downloaded"
+else
+    log_warning "requirements/static_files.sh not found - skipping IP database download"
+    log_info "You can download them manually later with: bash ./requirements/static_files.sh"
+fi
+
+# =============================================================================
 # 15.5. INSTALL FRONTEND DEPENDENCIES
 # =============================================================================
 log_step "STEP 15.5: Installing frontend dependencies"
