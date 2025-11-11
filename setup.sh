@@ -621,15 +621,7 @@ if python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt -
     # Verify file was created
     if [ -f "../data/certs/mtls/internal-ca.crt" ]; then
         log_success "CA certificate available at data/certs/mtls/internal-ca.crt"
-
-        # Also create CRL file (Certificate Revocation List) if command exists
-        if python manage.py export_ca_crl --output ../data/certs/mtls/internal-ca.crl --force 2>/dev/null; then
-            log_success "CRL (Certificate Revocation List) exported"
-        else
-            # Create empty CRL file for nginx (required by config)
-            touch ../data/certs/mtls/internal-ca.crl
-            log_info "Created empty CRL file (certificate revocation not yet implemented)"
-        fi
+        log_info "Note: CRL (Certificate Revocation List) not configured - certificate revocation not yet implemented"
     else
         log_warning "CA certificate not found at expected location"
         log_info "mTLS will not work until CA certificate is properly exported"
@@ -707,7 +699,7 @@ server {
     # mTLS Client Certificate Verification (OPTIONAL - enabled for non-admin users)
     ssl_client_certificate CA_CERT_PATH;
     ssl_verify_client optional;
-    ssl_crl CA_CRL_PATH;
+    # ssl_crl CA_CRL_PATH;  # Disabled - CRL not implemented yet
 
     # Proxy settings
     client_max_body_size 5G;
@@ -795,7 +787,6 @@ NGINXEOF
 sudo sed -i "s|SSL_CERT_PATH|$CURRENT_DIR/data/certs/mtls/server.crt|g" "$NGINX_CONF"
 sudo sed -i "s|SSL_KEY_PATH|$CURRENT_DIR/data/certs/mtls/server.key|g" "$NGINX_CONF"
 sudo sed -i "s|CA_CERT_PATH|$CURRENT_DIR/data/certs/mtls/internal-ca.crt|g" "$NGINX_CONF"
-sudo sed -i "s|CA_CRL_PATH|$CURRENT_DIR/data/certs/mtls/internal-ca.crl|g" "$NGINX_CONF"
 sudo sed -i "s|STATIC_PATH|$CURRENT_DIR/data/static/|g" "$NGINX_CONF"
 sudo sed -i "s|MEDIA_PATH|$CURRENT_DIR/data/media/|g" "$NGINX_CONF"
 
