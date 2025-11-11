@@ -41,7 +41,16 @@ class TokenCreateApi(AuthMixin, CreateAPIView):
             return Response(e.as_data(), status=400)
         except errors.NeedMoreInfoError as e:
             return Response(e.as_data(), status=200)
+        except errors.NeedRedirectError as e:
+            # Handle password errors (too simple, needs update, expired)
+            error_msg = getattr(e, 'detail', str(e.default_detail if hasattr(e, 'default_detail') else 'Password issue'))
+            return Response({
+                'error': getattr(e, 'default_code', 'password_error'),
+                'msg': str(error_msg),
+                'redirect_url': getattr(e, 'url', None)
+            }, status=400)
         except errors.MFAUnsetError:
             return Response({'error': 'MFA unset, please set first'}, status=400)
         except Exception as e:
-            return Response({"error": str(e)}, status=400)
+            logger.exception(f"Unexpected authentication error: {e}")
+            return Response({"error": "Authentication failed"}, status=400)
