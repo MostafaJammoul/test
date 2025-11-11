@@ -156,6 +156,8 @@ class MFARequiredMiddleware(MiddlewareMixin):
         '/api/v1/authentication/mfa/status/',
         '/api/v1/authentication/auth/',  # Token creation
         '/api/v1/authentication/tokens/',  # Legacy tokens
+        '/api/v1/users/me/',  # Current user profile
+        '/api/v1/users/profile/',  # User profile
         '/api/health/',
         '/admin/',  # Django admin (uses traditional auth)
         '/setup-mfa',
