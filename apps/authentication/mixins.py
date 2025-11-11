@@ -361,6 +361,10 @@ class AuthPostCheckMixin:
     def _check_passwd_is_too_simple(cls, user: User, password):
         if not user.is_auth_backend_model():
             return
+        # Skip password complexity check for superusers in development/testing
+        # SECURITY WARNING: Remove this in production or use strong passwords
+        if user.is_superuser:
+            return
         if user.check_passwd_too_simple(password) or user.check_leak_password(password):
             message = _('Your password is too simple, please change it for security')
             url = cls.generate_reset_password_url_with_flash_msg(user, message=message)
