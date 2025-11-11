@@ -615,12 +615,21 @@ cd apps
 
 # Export CA certificate to PEM format for nginx
 log_info "Exporting CA certificate for nginx..."
-if python manage.py export_ca_cert 2>&1 | tee /tmp/ca_export.log; then
+if python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt --force 2>&1 | tee /tmp/ca_export.log; then
     log_success "CA certificate exported successfully"
 
-    # Copy to nginx certs directory
+    # Verify file was created
     if [ -f "../data/certs/mtls/internal-ca.crt" ]; then
         log_success "CA certificate available at data/certs/mtls/internal-ca.crt"
+
+        # Also create CRL file (Certificate Revocation List) if command exists
+        if python manage.py export_ca_crl --output ../data/certs/mtls/internal-ca.crl --force 2>/dev/null; then
+            log_success "CRL (Certificate Revocation List) exported"
+        else
+            # Create empty CRL file for nginx (required by config)
+            touch ../data/certs/mtls/internal-ca.crl
+            log_info "Created empty CRL file (certificate revocation not yet implemented)"
+        fi
     else
         log_warning "CA certificate not found at expected location"
         log_info "mTLS will not work until CA certificate is properly exported"
@@ -629,7 +638,7 @@ else
     log_warning "Failed to export CA certificate"
     log_info "Check logs: /tmp/ca_export.log"
     log_info "mTLS will not work until CA certificate is exported"
-    log_info "You can export it manually later with: python manage.py export_ca_cert"
+    log_info "You can export it manually later with: python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt --force"
 fi
 
 cd ..
