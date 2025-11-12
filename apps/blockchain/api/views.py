@@ -794,6 +794,7 @@ class TagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
     """
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
+    perm_model = Tag
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'category', 'description']

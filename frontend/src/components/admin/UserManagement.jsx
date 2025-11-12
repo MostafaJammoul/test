@@ -4,7 +4,7 @@ import Card from '../common/Card';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import Modal from '../common/Modal';
-import { ROLE_NAMES } from '../../utils/constants';
+import { ROLE_NAMES, ROLES } from '../../utils/constants';
 import apiClient from '../../services/api';
 
 export default function UserManagement() {
@@ -16,6 +16,24 @@ export default function UserManagement() {
     queryFn: async () => {
       const response = await apiClient.get('/users/users/');
       return response.data.results;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (userData) => {
+      return apiClient.post('/users/users/', userData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsCreateModalOpen(false);
+    },
+    onError: (error) => {
+      const errorMessage = error.response?.data?.error ||
+                         error.response?.data?.detail ||
+                         error.response?.data?.username?.[0] ||
+                         error.response?.data?.email?.[0] ||
+                         'Failed to create user';
+      alert(`Error: ${errorMessage}`);
     },
   });
 
@@ -78,10 +96,18 @@ export default function UserManagement() {
         title="Create User"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setIsCreateModalOpen(false)}
+              disabled={createMutation.isPending}
+            >
               Cancel
             </Button>
-            <Button type="submit" form="create-user-form">
+            <Button
+              type="submit"
+              form="create-user-form"
+              loading={createMutation.isPending}
+            >
               Create User
             </Button>
           </>
@@ -89,19 +115,43 @@ export default function UserManagement() {
       >
         <UserCreateForm
           onSubmit={(data) => {
-            // TODO: Implement user creation API call
-            console.log('Creating user:', data);
-            alert('User creation will be implemented. For now, use Django Admin at http://192.168.148.154:8080/admin');
-            setIsCreateModalOpen(false);
+            // Map frontend role to system_roles UUIDs
+            let system_roles = [];
+            switch (data.role) {
+              case 'Admin':
+                system_roles = [ROLES.SYSTEM_ADMIN];
+                break;
+              case 'Auditor':
+                system_roles = [ROLES.BLOCKCHAIN_AUDITOR];
+                break;
+              case 'User':
+              default:
+                // Regular user, no special roles
+                system_roles = [];
+                break;
+            }
+
+            // Prepare user data for API
+            const userData = {
+              username: data.username,
+              name: data.name,
+              email: data.email,
+              password: data.password,
+              is_active: data.is_active,
+              system_roles: system_roles,
+            };
+
+            createMutation.mutate(userData);
           }}
           formId="create-user-form"
+          isLoading={createMutation.isPending}
         />
       </Modal>
     </Card>
   );
 }
 
-function UserCreateForm({ onSubmit, formId }) {
+function UserCreateForm({ onSubmit, formId, isLoading }) {
   const [formData, setFormData] = useState({
     username: '',
     name: '',
