@@ -19,9 +19,12 @@ from io import BytesIO
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.conf import settings
 from django.utils import timezone
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 class MFASetupView(APIView):
@@ -30,8 +33,10 @@ class MFASetupView(APIView):
 
     GET: Returns QR code and secret for user to scan
     POST: Verifies TOTP code and saves secret to user account
+
+    Note: Allows unauthenticated access during login flow (uses session data)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         """
@@ -39,7 +44,22 @@ class MFASetupView(APIView):
 
         Database: No writes, only reads users_user to check current mfa_level
         """
-        user = request.user
+        # Check if user is authenticated OR has username in session (during login)
+        if request.user.is_authenticated:
+            user = request.user
+        elif 'auth_username' in request.session:
+            # User logged in but hasn't completed MFA yet
+            username = request.session.get('auth_username')
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Session expired, please login again'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({
+                'error': 'Authentication required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
 
         # Check if MFA already configured
         if user.mfa_level > 0 and user.otp_secret_key:
@@ -87,7 +107,22 @@ class MFASetupView(APIView):
         - users_user.otp_secret_key = secret
         - users_user.mfa_level = 2 (force enabled)
         """
-        user = request.user
+        # Check if user is authenticated OR has username in session (during login)
+        if request.user.is_authenticated:
+            user = request.user
+        elif 'auth_username' in request.session:
+            username = request.session.get('auth_username')
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Session expired, please login again'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({
+                'error': 'Authentication required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         code = request.data.get('code')
 
         if not code:
@@ -131,8 +166,10 @@ class MFAVerifyView(APIView):
     Verify MFA code during login
 
     Database: Reads users_user.otp_secret_key, writes to django_session
+
+    Note: Allows unauthenticated access during login flow (uses session data)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         """
@@ -141,7 +178,22 @@ class MFAVerifyView(APIView):
         Database: Only reads users_user.otp_secret_key
         Session: Sets mfa_verified=True in django_session
         """
-        user = request.user
+        # Check if user is authenticated OR has username in session (during login)
+        if request.user.is_authenticated:
+            user = request.user
+        elif 'auth_username' in request.session:
+            username = request.session.get('auth_username')
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Session expired, please login again'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({
+                'error': 'Authentication required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         code = request.data.get('code')
 
         if not code:
@@ -178,12 +230,31 @@ class MFAStatusView(APIView):
 
     Database: Only reads users_user.mfa_level, users_user.otp_secret_key
 
-    Note: If user is authenticated via password (not certificate), MFA is not required.
+    Note: Allows unauthenticated access during login flow (uses session data)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
-        user = request.user
+        # Check if user is authenticated OR has username in session (during login)
+        if request.user.is_authenticated:
+            user = request.user
+        elif 'auth_username' in request.session:
+            username = request.session.get('auth_username')
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Session expired, please login again'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({
+                'error': 'Authentication required',
+                'mfa_configured': False,
+                'mfa_required': False,
+                'mfa_verified': False,
+                'needs_setup': False
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         auth_method = request.session.get('auth_method', 'unknown')
 
         # If using traditional authentication (not certificate), MFA is optional

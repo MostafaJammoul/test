@@ -40,6 +40,11 @@ class TokenCreateApi(AuthMixin, CreateAPIView):
         except errors.AuthFailedError as e:
             return Response(e.as_data(), status=400)
         except errors.NeedMoreInfoError as e:
+            # Store username in session for MFA setup/verification
+            # This allows MFA endpoints to work without full authentication
+            if 'user' in locals() and user:
+                request.session['auth_username'] = user.username
+                request.session['auth_user_id'] = str(user.id)
             return Response(e.as_data(), status=200)
         except errors.NeedRedirectError as e:
             # Handle password errors (too simple, needs update, expired)
