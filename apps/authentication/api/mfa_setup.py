@@ -257,21 +257,15 @@ class MFAStatusView(APIView):
 
         auth_method = request.session.get('auth_method', 'unknown')
 
-        # If using traditional authentication (not certificate), MFA is optional
-        if auth_method != 'certificate':
-            return Response({
-                'auth_method': auth_method,
-                'mfa_configured': user.mfa_level > 0 and bool(user.otp_secret_key),
-                'mfa_required': False,  # Not required for password auth
-                'mfa_verified': True,  # Already authenticated
-                'needs_setup': False  # No setup needed for password auth
-            })
+        # MFA is now REQUIRED for ALL users (both password and certificate auth)
+        mfa_configured = user.mfa_level > 0 and bool(user.otp_secret_key)
+        mfa_verified = request.session.get('mfa_verified', False)
+        needs_setup = not mfa_configured
 
-        # Certificate-based authentication requires MFA
         return Response({
-            'auth_method': 'certificate',
-            'mfa_configured': user.mfa_level > 0 and bool(user.otp_secret_key),
-            'mfa_required': True,
-            'mfa_verified': request.session.get('mfa_verified', False),
-            'needs_setup': user.mfa_level == 0 or not user.otp_secret_key
+            'auth_method': auth_method,
+            'mfa_configured': mfa_configured,
+            'mfa_required': True,  # Required for ALL users
+            'mfa_verified': mfa_verified,
+            'needs_setup': needs_setup
         })
