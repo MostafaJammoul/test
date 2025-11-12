@@ -152,7 +152,11 @@ class MFASetupView(APIView):
         user.save(update_fields=['otp_secret_key', 'mfa_level'])
         # Database Transaction End
 
-        # Clear session
+        # Mark MFA as verified in session (no need to verify again immediately)
+        request.session['mfa_verified'] = True
+        request.session['mfa_verified_at'] = str(timezone.now())
+
+        # Clear pending secret
         del request.session['pending_mfa_secret']
 
         return Response({
