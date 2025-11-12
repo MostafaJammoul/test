@@ -16,11 +16,15 @@ const apiClient = axios.create({
   withCredentials: true, // Include cookies for session authentication
 });
 
-// Request interceptor (add auth token if needed)
+// Request interceptor (add auth token if available)
 apiClient.interceptors.request.use(
   (config) => {
-    // Session-based auth with mTLS, no need for Bearer token
-    // Cookies automatically sent with withCredentials: true
+    // Check for Bearer token in localStorage (set after MFA verification)
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Cookies also sent automatically with withCredentials: true
     return config;
   },
   (error) => Promise.reject(error)
