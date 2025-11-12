@@ -163,9 +163,23 @@ class MFASetupView(APIView):
         # Clear pending secret
         del request.session['pending_mfa_secret']
 
+        # Generate authentication token for immediate use
+        token, date_expired = user.create_bearer_token(request)
+
+        # Update last login
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
+        # Import user serializer for response
+        from users.serializers import UserProfileSerializer
+
         return Response({
             'success': True,
-            'message': 'MFA configured successfully'
+            'message': 'MFA configured successfully',
+            'token': token,
+            'keyword': 'Bearer',
+            'date_expired': date_expired.strftime('%Y/%m/%d %H:%M:%S %z'),
+            'user': UserProfileSerializer(user).data
         })
 
 
@@ -230,9 +244,23 @@ class MFAVerifyView(APIView):
         request.session['auth_mfa_required'] = 0
         request.session['auth_mfa_type'] = 'totp'
 
+        # Generate authentication token for immediate use
+        token, date_expired = user.create_bearer_token(request)
+
+        # Update last login
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
+        # Import user serializer for response
+        from users.serializers import UserProfileSerializer
+
         return Response({
             'success': True,
-            'message': 'MFA verification successful'
+            'message': 'MFA verification successful',
+            'token': token,
+            'keyword': 'Bearer',
+            'date_expired': date_expired.strftime('%Y/%m/%d %H:%M:%S %z'),
+            'user': UserProfileSerializer(user).data
         })
 
 
