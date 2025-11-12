@@ -152,9 +152,13 @@ class MFASetupView(APIView):
         user.save(update_fields=['otp_secret_key', 'mfa_level'])
         # Database Transaction End
 
-        # Mark MFA as verified in session (no need to verify again immediately)
-        request.session['mfa_verified'] = True
-        request.session['mfa_verified_at'] = str(timezone.now())
+        # Mark MFA as verified in session using JumpServer's standard keys
+        import time
+        request.session['auth_mfa'] = 1
+        request.session['auth_mfa_username'] = user.username
+        request.session['auth_mfa_time'] = time.time()
+        request.session['auth_mfa_required'] = 0
+        request.session['auth_mfa_type'] = 'totp'
 
         # Clear pending secret
         del request.session['pending_mfa_secret']
@@ -217,10 +221,14 @@ class MFAVerifyView(APIView):
                 'error': 'Invalid MFA code'
             }, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Mark MFA as verified in session
+        # Mark MFA as verified in session using JumpServer's standard keys
         # Database Write: django_session table
-        request.session['mfa_verified'] = True
-        request.session['mfa_verified_at'] = str(timezone.now())
+        import time
+        request.session['auth_mfa'] = 1
+        request.session['auth_mfa_username'] = user.username
+        request.session['auth_mfa_time'] = time.time()
+        request.session['auth_mfa_required'] = 0
+        request.session['auth_mfa_type'] = 'totp'
 
         return Response({
             'success': True,
@@ -263,7 +271,9 @@ class MFAStatusView(APIView):
 
         # MFA is now REQUIRED for ALL users (both password and certificate auth)
         mfa_configured = user.mfa_level > 0 and bool(user.otp_secret_key)
-        mfa_verified = request.session.get('mfa_verified', False)
+        # Check JumpServer's standard MFA session key
+        mfa_verified = bool(request.session.get('auth_mfa') and
+                           request.session.get('auth_mfa_username') == user.username)
         needs_setup = not mfa_configured
 
         return Response({
