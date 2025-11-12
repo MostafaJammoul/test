@@ -152,6 +152,10 @@ class MFASetupView(APIView):
         user.save(update_fields=['otp_secret_key', 'mfa_level'])
         # Database Transaction End
 
+        # Authenticate user in Django session
+        from django.contrib.auth import login as auth_login
+        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
         # Mark MFA as verified in session using JumpServer's standard keys
         import time
         request.session['auth_mfa'] = 1
@@ -166,7 +170,7 @@ class MFASetupView(APIView):
         # Generate authentication token for immediate use
         token, date_expired = user.create_bearer_token(request)
 
-        # Update last login
+        # Update last login (already set by auth_login, but ensure it's saved)
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
 
@@ -235,6 +239,10 @@ class MFAVerifyView(APIView):
                 'error': 'Invalid MFA code'
             }, status=status.HTTP_401_UNAUTHORIZED)
 
+        # Authenticate user in Django session
+        from django.contrib.auth import login as auth_login
+        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
         # Mark MFA as verified in session using JumpServer's standard keys
         # Database Write: django_session table
         import time
@@ -247,7 +255,7 @@ class MFAVerifyView(APIView):
         # Generate authentication token for immediate use
         token, date_expired = user.create_bearer_token(request)
 
-        # Update last login
+        # Update last login (already set by auth_login, but ensure it's saved)
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
 
