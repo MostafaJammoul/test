@@ -64,9 +64,11 @@ class BlockchainRoleRequiredMixin:
         # Check if user has an allowed blockchain role
         from rbac.models import SystemRoleBinding
 
-        user_role_ids = SystemRoleBinding.objects.filter(
-            user=user
-        ).values_list('role_id', flat=True)
+        # Convert UUID objects to strings for comparison
+        user_role_ids = [
+            str(role_id) for role_id in
+            SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
+        ]
 
         has_blockchain_role = any(
             role_id in ALLOWED_BLOCKCHAIN_ROLE_IDS
@@ -76,7 +78,7 @@ class BlockchainRoleRequiredMixin:
         if not has_blockchain_role:
             logger.warning(
                 f"User {user.username} attempted to access blockchain API "
-                f"without authorized role. Roles: {list(user_role_ids)}"
+                f"without authorized role. Roles: {user_role_ids}"
             )
             # Return empty queryset - user not authorized
             return queryset.none()

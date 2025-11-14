@@ -15,7 +15,9 @@ export default function TagManagement() {
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await tagAPI.list();
-      return response.data.results;
+      // API returns array directly, not paginated {results: [...]}
+      console.log('Tags loaded:', response.data);
+      return Array.isArray(response.data) ? response.data : response.data.results || [];
     },
   });
 
@@ -24,6 +26,16 @@ export default function TagManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
       setIsCreateModalOpen(false);
+      alert('Tag created successfully!');
+    },
+    onError: (error) => {
+      console.error('Tag creation error:', error);
+      const errorMsg = error.response?.data?.detail
+        || error.response?.data?.error
+        || JSON.stringify(error.response?.data)
+        || error.message
+        || 'Failed to create tag';
+      alert(`Error creating tag: ${errorMsg}`);
     },
   });
 
