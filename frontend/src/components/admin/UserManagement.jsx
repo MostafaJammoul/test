@@ -21,19 +21,40 @@ export default function UserManagement() {
 
   const createMutation = useMutation({
     mutationFn: async (userData) => {
-      return apiClient.post('/users/users/', userData);
+      console.log('Submitting user creation request...');
+      const response = await apiClient.post('/users/users/', userData);
+      console.log('User created successfully:', response.data);
+      return response;
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      console.log('User creation mutation successful');
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsCreateModalOpen(false);
+      alert(`User "${response.data.username}" created successfully!`);
     },
     onError: (error) => {
-      const errorMessage = error.response?.data?.error ||
-                         error.response?.data?.detail ||
-                         error.response?.data?.username?.[0] ||
-                         error.response?.data?.email?.[0] ||
-                         'Failed to create user';
-      alert(`Error: ${errorMessage}`);
+      console.error('User creation failed:', error);
+      console.error('Error response:', error.response?.data);
+
+      // Extract all validation errors
+      const errorData = error.response?.data || {};
+      let errorMessage = errorData.error || errorData.detail || 'Failed to create user';
+
+      // Check for field-specific validation errors
+      const fieldErrors = [];
+      for (const [field, errors] of Object.entries(errorData)) {
+        if (Array.isArray(errors)) {
+          fieldErrors.push(`${field}: ${errors.join(', ')}`);
+        } else if (typeof errors === 'string' && !['error', 'detail'].includes(field)) {
+          fieldErrors.push(`${field}: ${errors}`);
+        }
+      }
+
+      if (fieldErrors.length > 0) {
+        errorMessage = fieldErrors.join('\n');
+      }
+
+      alert(`Error creating user:\n\n${errorMessage}`);
     },
   });
 
@@ -137,10 +158,12 @@ export default function UserManagement() {
               name: data.name,
               email: data.email,
               password: data.password,
+              password_strategy: 'custom',  // ✓ CRITICAL: Tell Django to use the password we provide
               is_active: data.is_active,
               system_roles: system_roles,
             };
 
+            console.log('Creating user with data:', { ...userData, password: '[REDACTED]' });
             createMutation.mutate(userData);
           }}
           formId="create-user-form"
