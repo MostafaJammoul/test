@@ -12,10 +12,22 @@ import { TAG_CATEGORY_DISPLAY } from '../../utils/constants';
 
 export default function TagManagement() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [expandedTagId, setExpandedTagId] = useState(null);
+  const [expandedTagIds, setExpandedTagIds] = useState(new Set());
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+
+  const toggleTagDescription = (tagId) => {
+    setExpandedTagIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(tagId)) {
+        newSet.delete(tagId);
+      } else {
+        newSet.add(tagId);
+      }
+      return newSet;
+    });
+  };
 
   const { data: tags, isLoading } = useQuery({
     queryKey: ['tags'],
@@ -108,9 +120,9 @@ export default function TagManagement() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setExpandedTagId(expandedTagId === tag.id ? null : tag.id)}
+                    onClick={() => toggleTagDescription(tag.id)}
                   >
-                    {expandedTagId === tag.id ? (
+                    {expandedTagIds.has(tag.id) ? (
                       <ChevronUpIcon className="h-4 w-4" />
                     ) : (
                       <ChevronDownIcon className="h-4 w-4" />
@@ -126,7 +138,7 @@ export default function TagManagement() {
                 </Button>
               </div>
             </div>
-            {tag.description && expandedTagId === tag.id && (
+            {tag.description && expandedTagIds.has(tag.id) && (
               <div className="px-3 pb-3 pt-0">
                 <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
                   <span className="font-medium text-gray-900">Description: </span>

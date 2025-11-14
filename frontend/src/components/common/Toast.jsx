@@ -26,11 +26,17 @@ export default function Toast({ message, type = 'info', onClose, duration = 4000
   };
 
   return (
-    <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg ${typeStyles[type]}`}>
+    <div
+      onClick={onClose}
+      className={`px-4 py-3 rounded-lg border shadow-lg cursor-pointer flex items-center gap-3 ${typeStyles[type]}`}
+    >
       {icons[type]}
       <span className="text-sm font-medium">{message}</span>
       <button
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
         className="ml-2 hover:opacity-70 transition-opacity"
       >
         <XMarkIcon className="h-4 w-4" />
