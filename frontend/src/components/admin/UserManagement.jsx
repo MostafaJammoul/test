@@ -18,8 +18,9 @@ export default function UserManagement() {
     queryKey: ['users'],
     queryFn: async () => {
       const response = await apiClient.get('/users/users/');
-      console.log('Users loaded:', response.data.results);
-      return response.data.results;
+      // API returns array directly, not paginated {results: [...]}
+      console.log('Users loaded:', response.data);
+      return response.data;
     },
   });
 
