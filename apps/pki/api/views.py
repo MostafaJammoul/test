@@ -27,7 +27,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from common.permissions import IsValidUser
 from rbac.permissions import RBACPermission
 from orgs.mixins.api import OrgBulkModelViewSet
-from ..models import CertificateAuthority, UserCertificate, CertificateRevocation
+from ..models import CertificateAuthority, Certificate, CertificateRevocation
 from ..ca_manager import CAManager
 from .serializers import CertificateAuthoritySerializer, UserCertificateSerializer, CertificateRevocationSerializer
 
@@ -213,7 +213,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
         - Admin: Issue, revoke any certificate
         - Users: View and download their own certificates
     """
-    model = UserCertificate
+    model = Certificate
     serializer_class = UserCertificateSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -301,7 +301,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             )
 
         # Check if user already has valid certificate
-        existing_cert = UserCertificate.objects.filter(
+        existing_cert = Certificate.objects.filter(
             user=target_user,
             status='valid',
             not_valid_after__gt=timezone.now()
@@ -339,7 +339,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             )
 
             # Create certificate record
-            user_cert = UserCertificate.objects.create(
+            user_cert = Certificate.objects.create(
                 ca=ca,
                 user=target_user,
                 certificate=cert_data['certificate_pem'],
@@ -555,7 +555,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             )
 
             # Create new certificate record
-            new_cert = UserCertificate.objects.create(
+            new_cert = Certificate.objects.create(
                 ca=old_cert.ca,
                 user=old_cert.user,
                 certificate=cert_data['certificate_pem'],
