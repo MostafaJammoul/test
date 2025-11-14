@@ -4,6 +4,8 @@ import Card from '../common/Card';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import Modal from '../common/Modal';
+import ConfirmDialog from '../common/ConfirmDialog';
+import { useToast } from '../../contexts/ToastContext';
 import { ROLE_NAMES, ROLES } from '../../utils/constants';
 import apiClient from '../../services/api';
 
@@ -12,7 +14,9 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'primary' });
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -35,7 +39,7 @@ export default function UserManagement() {
       console.log('User creation mutation successful');
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsCreateModalOpen(false);
-      alert(`User "${response.data.username}" created successfully!`);
+      showToast(`User "${response.data.username}" created successfully!`, 'success');
     },
     onError: (error) => {
       console.error('User creation failed:', error);
@@ -56,10 +60,10 @@ export default function UserManagement() {
       }
 
       if (fieldErrors.length > 0) {
-        errorMessage = fieldErrors.join('\n');
+        errorMessage = fieldErrors.join(', ');
       }
 
-      alert(`Error creating user:\n\n${errorMessage}`);
+      showToast(`Error creating user: ${errorMessage}`, 'error', 6000);
     },
   });
 
@@ -74,7 +78,7 @@ export default function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsEditModalOpen(false);
       setSelectedUser(null);
-      alert(`User "${response.data.username}" updated successfully!`);
+      showToast(`User "${response.data.username}" updated successfully!`, 'success');
     },
     onError: (error) => {
       console.error('User update failed:', error);
@@ -91,10 +95,10 @@ export default function UserManagement() {
       }
 
       if (fieldErrors.length > 0) {
-        errorMessage = fieldErrors.join('\n');
+        errorMessage = fieldErrors.join(', ');
       }
 
-      alert(`Error updating user:\n\n${errorMessage}`);
+      showToast(`Error updating user: ${errorMessage}`, 'error', 6000);
     },
   });
 
@@ -105,14 +109,14 @@ export default function UserManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      alert('User deleted successfully!');
+      showToast('User deleted successfully!', 'success');
     },
     onError: (error) => {
       console.error('User deletion failed:', error);
       const errorMessage = error.response?.data?.error ||
                           error.response?.data?.detail ||
                           'Failed to delete user';
-      alert(`Error deleting user:\n\n${errorMessage}`);
+      showToast(`Error deleting user: ${errorMessage}`, 'error', 6000);
     },
   });
 
@@ -128,25 +132,40 @@ export default function UserManagement() {
 
   const handleDeleteUser = (user) => {
     if (user.username === 'admin') {
-      alert('Cannot delete the admin user!');
+      showToast('Cannot delete the admin user!', 'warning');
       return;
     }
 
-    if (confirm(`Are you sure you want to DELETE user "${user.username}"?\n\nThis action cannot be undone!`)) {
-      deleteMutation.mutate(user.id);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete User',
+      message: `Are you sure you want to DELETE user "${user.username}"? This action cannot be undone!`,
+      variant: 'danger',
+      onConfirm: () => {
+        deleteMutation.mutate(user.id);
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+      }
+    });
   };
 
   const toggleUserStatus = (user) => {
     const newStatus = !user.is_active;
-    const action = newStatus ? 'activate' : 'deactivate';
+    const action = newStatus ? 'Activate' : 'Deactivate';
 
-    if (confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user "${user.username}"?`)) {
-      updateMutation.mutate({
-        userId: user.id,
-        data: { is_active: newStatus }
-      });
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: `${action} User`,
+      message: `${action} user "${user.username}"?`,
+      variant: newStatus ? 'primary' : 'danger',
+      confirmText: action,
+      onConfirm: () => {
+        updateMutation.mutate({
+          userId: user.id,
+          data: { is_active: newStatus }
+        });
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+      }
+    });
   };
 
   // Get role display names for a user
@@ -200,8 +219,11 @@ export default function UserManagement() {
                     <span className="font-medium text-gray-900 truncate">
                       {user.name || user.username}
                     </span>
+                    <Badge variant={user.is_active ? 'success' : 'danger'}>
+                      {user.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
                     {user.is_superuser && (
-                      <Badge variant="danger">Superuser</Badge>
+                      <Badge variant="warning">Superuser</Badge>
                     )}
                   </div>
                   <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500">
@@ -218,10 +240,6 @@ export default function UserManagement() {
 
               {/* Actions */}
               <div className="flex items-center space-x-2">
-                <Badge variant={user.is_active ? 'success' : 'danger'}>
-                  {user.is_active ? 'Active' : 'Inactive'}
-                </Badge>
-
                 <Button
                   variant="outline"
                   size="sm"
@@ -480,6 +498,17 @@ export default function UserManagement() {
           />
         </Modal>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        confirmVariant={confirmDialog.variant}
+      />
     </Card>
   );
 }
