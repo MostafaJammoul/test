@@ -792,7 +792,7 @@ class TagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         Admin creates categorization tags (crime type, priority, status)
         with color coding for UI display. Max 3 tags per investigation.
     """
-    queryset = Tag.objects.all()
+    model = Tag
     serializer_class = TagSerializer
     perm_model = Tag
     permission_classes = [IsAuthenticated, RBACPermission]
@@ -829,7 +829,7 @@ class InvestigationTagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         BlockchainCourt assigns up to 3 tags from library to each investigation
         for filtering and organization in the UI dashboard.
     """
-    queryset = InvestigationTag.objects.all()
+    model = InvestigationTag
     serializer_class = InvestigationTagSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -872,7 +872,7 @@ class InvestigationNoteViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet)
         Investigators add timestamped notes to investigations. Notes are
         immutably recorded on blockchain for chain of custody audit trail.
     """
-    queryset = InvestigationNote.objects.all()
+    model = InvestigationNote
     serializer_class = InvestigationNoteSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -921,7 +921,7 @@ class InvestigationActivityViewSet(BlockchainRoleRequiredMixin, viewsets.ReadOnl
         note added, tag changed, status changed). Users can mark activities
         as viewed to track what's new.
     """
-    queryset = InvestigationActivity.objects.all()
+    model = InvestigationActivity
     serializer_class = InvestigationActivitySerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
