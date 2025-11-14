@@ -11,6 +11,7 @@ export default function Button({
   onClick,
   type = 'button',
   className = '',
+  form,  // ✓ ADDED: Allow form attribute for submit buttons outside the form
 }) {
   const variants = {
     primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
@@ -29,6 +30,7 @@ export default function Button({
   return (
     <button
       type={type}
+      form={form}  // ✓ ADDED: Pass form attribute to button element
       onClick={onClick}
       disabled={disabled || loading}
       className={`
