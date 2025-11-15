@@ -10,7 +10,16 @@ import { useAuth } from '../../contexts/AuthContext';
 import apiClient from '../../services/api';
 
 export default function CertificateManagement() {
-  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '',
+    confirmVariant: 'primary',
+    type: null,
+    requireReason: false,
+    payload: null,
+  });
   const [revocationReason, setRevocationReason] = useState('');
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'revoked'
   const queryClient = useQueryClient();
@@ -100,17 +109,45 @@ export default function CertificateManagement() {
     },
   });
 
+  const closeConfirmDialog = () => {
+    setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  const handleConfirmDialog = () => {
+    if (!confirmDialog.isOpen) {
+      return;
+    }
+
+    if (confirmDialog.type === 'issue' && confirmDialog.payload?.userId) {
+      issueMutation.mutate(confirmDialog.payload.userId);
+      closeConfirmDialog();
+      return;
+    }
+
+    if (confirmDialog.type === 'revoke' && confirmDialog.payload?.certId) {
+      const trimmedReason = revocationReason.trim();
+      if (!trimmedReason) {
+        showToast('Please enter a revocation reason before revoking.', 'warning');
+        return;
+      }
+      revokeMutation.mutate({ certId: confirmDialog.payload.certId, reason: trimmedReason });
+      closeConfirmDialog();
+      return;
+    }
+
+    closeConfirmDialog();
+  };
+
   const handleIssue = (user) => {
     setConfirmDialog({
       isOpen: true,
       title: 'Issue Certificate',
       message: `Issue mTLS certificate to "${user.username}"? The certificate will be downloaded as a .p12 file. When importing, leave the password field BLANK (just press Enter).`,
       confirmText: 'Issue & Download',
-      variant: 'primary',
-      onConfirm: () => {
-        issueMutation.mutate(user.id);
-        setConfirmDialog({ ...confirmDialog, isOpen: false });
-      }
+      confirmVariant: 'primary',
+      type: 'issue',
+      requireReason: false,
+      payload: { userId: user.id },
     });
   };
 
@@ -121,12 +158,10 @@ export default function CertificateManagement() {
       title: 'Revoke Certificate',
       message: `Revoke certificate for "${user.username}"? User will no longer be able to authenticate with this certificate.`,
       confirmText: 'Revoke',
-      variant: 'danger',
+      confirmVariant: 'danger',
       requireReason: true, // Flag to show reason input
-      onConfirm: () => {
-        revokeMutation.mutate({ certId: cert.id, reason: revocationReason });
-        setConfirmDialog({ ...confirmDialog, isOpen: false });
-      }
+      type: 'revoke',
+      payload: { certId: cert.id },
     });
   };
 
@@ -352,31 +387,29 @@ export default function CertificateManagement() {
       {/* Confirmation Dialog with Reason Input */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
-        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
-        onConfirm={confirmDialog.onConfirm}
+        onClose={closeConfirmDialog}
+        onConfirm={handleConfirmDialog}
         title={confirmDialog.title}
         message={confirmDialog.message}
         confirmText={confirmDialog.confirmText}
-        confirmVariant={confirmDialog.variant}
+        confirmVariant={confirmDialog.confirmVariant}
       >
         {confirmDialog.requireReason && (
           <div className="mt-4">
             <label htmlFor="revocation-reason" className="block text-sm font-medium text-gray-700 mb-2">
               Revocation Reason
             </label>
-            <select
+            <textarea
               id="revocation-reason"
               value={revocationReason}
               onChange={(e) => setRevocationReason(e.target.value)}
+              rows={3}
+              placeholder="Describe why this certificate is being revoked..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="unspecified">Unspecified</option>
-              <option value="key_compromise">Key Compromise</option>
-              <option value="ca_compromise">CA Compromise</option>
-              <option value="affiliation_changed">Affiliation Changed</option>
-              <option value="superseded">Superseded</option>
-              <option value="cessation_of_operation">Cessation of Operation</option>
-            </select>
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              This reason is stored on the certificate and displayed under the Revoked Certificates tab.
+            </p>
           </div>
         )}
       </ConfirmDialog>
