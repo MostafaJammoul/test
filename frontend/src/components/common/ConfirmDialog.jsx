@@ -1,7 +1,16 @@
 import Modal from './Modal';
 import Button from './Button';
 
-export default function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', confirmVariant = 'primary' }) {
+export default function ConfirmDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = 'Confirm',
+  confirmVariant = 'primary',
+  children
+}) {
   return (
     <Modal
       isOpen={isOpen}
@@ -19,6 +28,7 @@ export default function ConfirmDialog({ isOpen, onClose, onConfirm, title, messa
       }
     >
       <p className="text-gray-700">{message}</p>
+      {children}
     </Modal>
   );
 }

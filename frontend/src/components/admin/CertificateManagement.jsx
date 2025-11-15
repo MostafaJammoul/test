@@ -10,6 +10,8 @@ import apiClient from '../../services/api';
 
 export default function CertificateManagement() {
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  const [revocationReason, setRevocationReason] = useState('');
+  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'revoked'
   const queryClient = useQueryClient();
   const { showToast } = useToast();
 
@@ -55,14 +57,15 @@ export default function CertificateManagement() {
 
   // Revoke certificate mutation
   const revokeMutation = useMutation({
-    mutationFn: async (certId) => {
+    mutationFn: async ({ certId, reason }) => {
       const response = await apiClient.post(`/pki/certificates/${certId}/revoke/`, {
-        reason: 'unspecified'
+        reason: reason || 'unspecified'
       });
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['certificates'] });
+      setRevocationReason(''); // Clear the reason field
       showToast('Certificate revoked successfully!', 'success');
     },
     onError: (error) => {
@@ -86,14 +89,16 @@ export default function CertificateManagement() {
   };
 
   const handleRevoke = (user, cert) => {
+    setRevocationReason(''); // Reset reason field
     setConfirmDialog({
       isOpen: true,
       title: 'Revoke Certificate',
       message: `Revoke certificate for "${user.username}"? User will no longer be able to authenticate with this certificate.`,
       confirmText: 'Revoke',
       variant: 'danger',
+      requireReason: true, // Flag to show reason input
       onConfirm: () => {
-        revokeMutation.mutate(cert.id);
+        revokeMutation.mutate({ certId: cert.id, reason: revocationReason });
         setConfirmDialog({ ...confirmDialog, isOpen: false });
       }
     });
@@ -121,83 +126,199 @@ export default function CertificateManagement() {
     );
   }
 
+  // Get revoked certificates
+  const revokedCertificates = certificates?.filter(cert => cert.revoked) || [];
+
   return (
     <Card title="Certificate Management (mTLS)">
-      <div className="space-y-3">
-        {users?.map((user) => {
-          const cert = getUserCertificate(user.id);
-          const hasCert = !!cert;
+      {/* Sub-tabs */}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`
+              whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors
+              ${
+                activeTab === 'active'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }
+            `}
+          >
+            Active Certificates
+          </button>
+          <button
+            onClick={() => setActiveTab('revoked')}
+            className={`
+              whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors
+              ${
+                activeTab === 'revoked'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }
+            `}
+          >
+            Revoked Certificates
+            {revokedCertificates.length > 0 && (
+              <span className="ml-2 bg-gray-200 text-gray-700 py-0.5 px-2 rounded-full text-xs">
+                {revokedCertificates.length}
+              </span>
+            )}
+          </button>
+        </nav>
+      </div>
 
-          return (
-            <div
-              key={user.id}
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
-            >
-              {/* User Info */}
-              <div className="flex items-center space-x-4 flex-1">
-                <div className="flex-shrink-0">
-                  <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                    <span className="text-primary-700 font-semibold text-lg">
-                      {(user.name || user.username).charAt(0).toUpperCase()}
-                    </span>
+      {/* Active Certificates Tab */}
+      {activeTab === 'active' && (
+        <div className="space-y-3">
+          {users?.map((user) => {
+            const cert = getUserCertificate(user.id);
+            const hasCert = !!cert;
+
+            return (
+              <div
+                key={user.id}
+                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
+              >
+                {/* User Info */}
+                <div className="flex items-center space-x-4 flex-1">
+                  <div className="flex-shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                      <span className="text-primary-700 font-semibold text-lg">
+                        {(user.name || user.username).charAt(0).toUpperCase()}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium text-gray-900">
-                      {user.name || user.username}
-                    </span>
-                    {hasCert ? (
-                      <CheckCircleIcon className="h-5 w-5 text-green-500" title="Has valid certificate" />
-                    ) : (
-                      <XCircleIcon className="h-5 w-5 text-gray-400" title="No certificate" />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium text-gray-900">
+                        {user.name || user.username}
+                      </span>
+                      {hasCert ? (
+                        <CheckCircleIcon className="h-5 w-5 text-green-500" title="Has valid certificate" />
+                      ) : (
+                        <XCircleIcon className="h-5 w-5 text-gray-400" title="No certificate" />
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      <span>@{user.username}</span>
+                      <span className="mx-2">•</span>
+                      <span>{user.email}</span>
+                    </div>
+                    {hasCert && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        Expires: {new Date(cert.not_after).toLocaleDateString()}
+                      </div>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    <span>@{user.username}</span>
-                    <span className="mx-2">•</span>
-                    <span>{user.email}</span>
-                  </div>
-                  {hasCert && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      Expires: {new Date(cert.not_after).toLocaleDateString()}
-                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center space-x-2">
+                  <Badge variant={hasCert ? 'success' : 'secondary'}>
+                    {hasCert ? 'Certificate Issued' : 'No Certificate'}
+                  </Badge>
+
+                  {hasCert ? (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          window.location.href = `/api/v1/pki/certificates/${cert.id}/download/`;
+                        }}
+                      >
+                        Download .p12
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleRevoke(user, cert)}
+                        disabled={revokeMutation.isPending}
+                      >
+                        Revoke
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleIssue(user)}
+                      disabled={issueMutation.isPending}
+                    >
+                      Issue & Download
+                    </Button>
                   )}
                 </div>
               </div>
+            );
+          })}
+        </div>
+      )}
 
-              {/* Actions */}
-              <div className="flex items-center space-x-2">
-                <Badge variant={hasCert ? 'success' : 'secondary'}>
-                  {hasCert ? 'Certificate Issued' : 'No Certificate'}
-                </Badge>
-
-                {hasCert ? (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleRevoke(user, cert)}
-                    disabled={revokeMutation.isPending}
-                  >
-                    Revoke Certificate
-                  </Button>
-                ) : (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleIssue(user)}
-                    disabled={issueMutation.isPending}
-                  >
-                    Issue & Download Certificate
-                  </Button>
-                )}
-              </div>
+      {/* Revoked Certificates Tab */}
+      {activeTab === 'revoked' && (
+        <div className="space-y-3">
+          {revokedCertificates.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <XCircleIcon className="mx-auto h-12 w-12 text-gray-400 mb-3" />
+              <p className="text-lg font-medium">No Revoked Certificates</p>
+              <p className="text-sm mt-1">All certificates are currently active</p>
             </div>
-          );
-        })}
-      </div>
+          ) : (
+            revokedCertificates.map((cert) => {
+              const user = users?.find(u => u.id === cert.user);
 
-      {/* Confirmation Dialog */}
+              return (
+                <div
+                  key={cert.id}
+                  className="flex items-center justify-between p-4 border border-red-200 bg-red-50 rounded-lg"
+                >
+                  <div className="flex items-center space-x-4 flex-1">
+                    <div className="flex-shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                        <XCircleIcon className="h-6 w-6 text-red-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900">
+                          {user?.name || user?.username || 'Unknown User'}
+                        </span>
+                        <Badge variant="danger">Revoked</Badge>
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        <div>
+                          <span className="font-medium">User:</span> @{user?.username || 'N/A'}
+                        </div>
+                        <div>
+                          <span className="font-medium">Serial:</span> {cert.serial_number}
+                        </div>
+                        <div>
+                          <span className="font-medium">Revoked:</span>{' '}
+                          {new Date(cert.revocation_date).toLocaleString()}
+                        </div>
+                        {cert.revocation_reason && (
+                          <div>
+                            <span className="font-medium">Reason:</span>{' '}
+                            <span className="text-red-700">{cert.revocation_reason}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    <div>Issued: {new Date(cert.not_before).toLocaleDateString()}</div>
+                    <div>Expired: {new Date(cert.not_after).toLocaleDateString()}</div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Confirmation Dialog with Reason Input */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
@@ -206,7 +327,28 @@ export default function CertificateManagement() {
         message={confirmDialog.message}
         confirmText={confirmDialog.confirmText}
         confirmVariant={confirmDialog.variant}
-      />
+      >
+        {confirmDialog.requireReason && (
+          <div className="mt-4">
+            <label htmlFor="revocation-reason" className="block text-sm font-medium text-gray-700 mb-2">
+              Revocation Reason
+            </label>
+            <select
+              id="revocation-reason"
+              value={revocationReason}
+              onChange={(e) => setRevocationReason(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="unspecified">Unspecified</option>
+              <option value="key_compromise">Key Compromise</option>
+              <option value="ca_compromise">CA Compromise</option>
+              <option value="affiliation_changed">Affiliation Changed</option>
+              <option value="superseded">Superseded</option>
+              <option value="cessation_of_operation">Cessation of Operation</option>
+            </select>
+          </div>
+        )}
+      </ConfirmDialog>
     </Card>
   );
 }
