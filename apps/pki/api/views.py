@@ -303,8 +303,8 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
         # Check if user already has valid certificate
         existing_cert = Certificate.objects.filter(
             user=target_user,
-            status='valid',
-            not_valid_after__gt=timezone.now()
+            revoked=False,
+            not_after__gt=timezone.now()
         ).first()
 
         if existing_cert:
@@ -312,7 +312,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
                 {
                     'error': 'User already has a valid certificate',
                     'certificate_id': str(existing_cert.id),
-                    'expires_at': existing_cert.not_valid_after.isoformat()
+                    'expires_at': existing_cert.not_after.isoformat()
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
@@ -346,10 +346,9 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
                 private_key=cert_data['private_key_pem'],  # Encrypted by model
                 serial_number=cert_data['serial_number'],
                 subject_dn=cert_data['subject_dn'],
-                not_valid_before=cert_data['not_valid_before'],
-                not_valid_after=cert_data['not_valid_after'],
-                status='valid',
-                issued_by=request.user
+                not_before=cert_data['not_valid_before'],
+                not_after=cert_data['not_valid_after'],
+                revoked=False
             )
 
             logger.info(
@@ -398,10 +397,10 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
         if not (request.user == cert.user or request.user.is_superuser):
             raise PermissionDenied("You can only download your own certificates")
 
-        # Check if certificate is valid
-        if cert.status != 'valid':
+        # Check if certificate is revoked
+        if cert.revoked:
             return Response(
-                {'error': f'Certificate is {cert.status}, cannot download'},
+                {'error': 'Certificate is revoked, cannot download'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -471,23 +470,21 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             )
 
         # Check if already revoked
-        if cert.status == 'revoked':
+        if cert.revoked:
             return Response(
                 {'error': 'Certificate already revoked'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            # Revoke certificate
-            cert.status = 'revoked'
-            cert.save()
+            # Revoke certificate using model method
+            cert.revoke(reason=reason)
 
             # Create revocation record
             revocation = CertificateRevocation.objects.create(
                 certificate=cert,
                 reason=reason,
-                revoked_by=request.user,
-                revoked_at=timezone.now()
+                revoked_by=request.user
             )
 
             # TODO: Regenerate CRL and update nginx
