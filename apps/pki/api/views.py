@@ -534,7 +534,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             raise PermissionDenied("You can only renew your own certificates")
 
         # Check if certificate can be renewed
-        if old_cert.status == 'revoked':
+        if old_cert.revoked:
             return Response(
                 {'error': 'Cannot renew revoked certificate'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -559,15 +559,13 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
                 private_key=cert_data['private_key_pem'],
                 serial_number=cert_data['serial_number'],
                 subject_dn=cert_data['subject_dn'],
-                not_valid_before=cert_data['not_valid_before'],
-                not_valid_after=cert_data['not_valid_after'],
-                status='valid',
-                issued_by=request.user
+                not_before=cert_data['not_valid_before'],
+                not_after=cert_data['not_valid_after'],
+                revoked=False
             )
 
-            # Mark old certificate as superseded
-            old_cert.status = 'superseded'
-            old_cert.save()
+            # Revoke old certificate (superseded by new one)
+            old_cert.revoke(reason='superseded')
 
             logger.info(
                 f"Certificate {old_cert.serial_number} renewed as {new_cert.serial_number} "
@@ -578,9 +576,9 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
                 'status': 'success',
                 'new_certificate_id': str(new_cert.id),
                 'new_serial_number': new_cert.serial_number,
-                'not_valid_after': new_cert.not_valid_after.isoformat(),
+                'not_after': new_cert.not_after.isoformat(),
                 'download_url': f'/api/v1/pki/certificates/{new_cert.id}/download/',
-                'old_certificate_status': 'superseded'
+                'old_certificate_revoked': True
             })
 
         except Exception as e:
