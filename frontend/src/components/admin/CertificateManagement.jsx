@@ -35,21 +35,45 @@ export default function CertificateManagement() {
     },
   });
 
+  // Helper function to download certificate
+  const downloadCertificate = async (certId, username) => {
+    try {
+      const response = await apiClient.get(`/pki/certificates/${certId}/download/`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'application/x-pkcs12' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${username}.p12`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      showToast(`Certificate downloaded successfully. Import password: (leave blank)`, 'success', 5000);
+    } catch (error) {
+      showToast('Failed to download certificate', 'error');
+      throw error;
+    }
+  };
+
   // Issue certificate mutation
   const issueMutation = useMutation({
     mutationFn: async (userId) => {
       const response = await apiClient.post('/pki/certificates/issue/', { user_id: userId });
       return response.data;
     },
-    onSuccess: (data, userId) => {
+    onSuccess: async (data, userId) => {
       queryClient.invalidateQueries({ queryKey: ['certificates'] });
 
-      // Trigger download
-      const downloadUrl = data.download_url;
-      window.location.href = downloadUrl;
-
       const user = users.find(u => u.id === userId);
-      showToast(`Certificate issued to ${user?.username}. Download started.`, 'success');
+
+      // Trigger download with proper authentication
+      try {
+        await downloadCertificate(data.certificate_id, user.username);
+      } catch (error) {
+        showToast(`Certificate issued but download failed. Use "Download .p12" button.`, 'warning', 6000);
+      }
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.error || 'Failed to issue certificate';
@@ -80,7 +104,7 @@ export default function CertificateManagement() {
     setConfirmDialog({
       isOpen: true,
       title: 'Issue Certificate',
-      message: `Issue mTLS certificate to "${user.username}"? The certificate will be downloaded as a .p12 file.`,
+      message: `Issue mTLS certificate to "${user.username}"? The certificate will be downloaded as a .p12 file. When importing, leave the password field BLANK (just press Enter).`,
       confirmText: 'Issue & Download',
       variant: 'primary',
       onConfirm: () => {
@@ -226,25 +250,7 @@ export default function CertificateManagement() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={async () => {
-                          try {
-                            const response = await apiClient.get(`/pki/certificates/${cert.id}/download/`, {
-                              responseType: 'blob'
-                            });
-                            const blob = new Blob([response.data], { type: 'application/x-pkcs12' });
-                            const url = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = `${user.username}.p12`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(url);
-                            showToast('Certificate downloaded successfully', 'success');
-                          } catch (error) {
-                            showToast('Failed to download certificate', 'error');
-                          }
-                        }}
+                        onClick={() => downloadCertificate(cert.id, user.username)}
                       >
                         Download .p12
                       </Button>
