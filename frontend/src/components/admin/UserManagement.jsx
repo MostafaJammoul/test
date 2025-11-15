@@ -6,6 +6,7 @@ import Badge from '../common/Badge';
 import Modal from '../common/Modal';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { ROLE_NAMES, ROLES } from '../../utils/constants';
 import apiClient from '../../services/api';
 
@@ -17,6 +18,7 @@ export default function UserManagement() {
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'primary' });
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { user: currentUser } = useAuth();
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -131,8 +133,9 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = (user) => {
-    if (user.username === 'admin') {
-      showToast('Cannot delete the admin user!', 'warning');
+    // Prevent self-deletion
+    if (currentUser && user.id === currentUser.id) {
+      showToast('You cannot delete your own account! This would lock you out of the system.', 'error');
       return;
     }
 
@@ -151,6 +154,12 @@ export default function UserManagement() {
   const toggleUserStatus = (user) => {
     const newStatus = !user.is_active;
     const action = newStatus ? 'Activate' : 'Deactivate';
+
+    // Prevent self-deactivation
+    if (currentUser && user.id === currentUser.id && !newStatus) {
+      showToast('You cannot deactivate your own account! This would lock you out of the system.', 'error');
+      return;
+    }
 
     setConfirmDialog({
       isOpen: true,
@@ -260,11 +269,13 @@ export default function UserManagement() {
                   variant={user.is_active ? 'danger' : 'success'}
                   size="sm"
                   onClick={() => toggleUserStatus(user)}
+                  disabled={currentUser && user.id === currentUser.id && user.is_active}
+                  title={currentUser && user.id === currentUser.id && user.is_active ? 'Cannot deactivate your own account' : ''}
                 >
                   {user.is_active ? 'Deactivate' : 'Activate'}
                 </Button>
 
-                {user.username !== 'admin' && (
+                {currentUser && user.id !== currentUser.id && (
                   <Button
                     variant="danger"
                     size="sm"

@@ -442,6 +442,13 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
         """
         cert = self.get_object()
 
+        # Prevent self-revocation
+        if cert.user == request.user:
+            return Response(
+                {'error': 'You cannot revoke your own certificate. This would lock you out of the system.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Check permission
         if not (request.user.is_superuser or request.user.has_perm('pki.revoke_certificate')):
             raise PermissionDenied("Insufficient permissions to revoke certificates")

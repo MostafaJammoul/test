@@ -6,6 +6,7 @@ import Button from '../common/Button';
 import Badge from '../common/Badge';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 import apiClient from '../../services/api';
 
 export default function CertificateManagement() {
@@ -14,6 +15,7 @@ export default function CertificateManagement() {
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'revoked'
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { user: currentUser } = useAuth();
 
   // Fetch all users
   const { data: users, isLoading: usersLoading } = useQuery({
@@ -224,20 +226,43 @@ export default function CertificateManagement() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => {
-                          window.location.href = `/api/v1/pki/certificates/${cert.id}/download/`;
+                        onClick={async () => {
+                          try {
+                            const response = await apiClient.get(`/pki/certificates/${cert.id}/download/`, {
+                              responseType: 'blob'
+                            });
+                            const blob = new Blob([response.data], { type: 'application/x-pkcs12' });
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `${user.username}.p12`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                            showToast('Certificate downloaded successfully', 'success');
+                          } catch (error) {
+                            showToast('Failed to download certificate', 'error');
+                          }
                         }}
                       >
                         Download .p12
                       </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => handleRevoke(user, cert)}
-                        disabled={revokeMutation.isPending}
-                      >
-                        Revoke
-                      </Button>
+                      {currentUser && user.id !== currentUser.id && (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleRevoke(user, cert)}
+                          disabled={revokeMutation.isPending}
+                        >
+                          Revoke
+                        </Button>
+                      )}
+                      {currentUser && user.id === currentUser.id && (
+                        <span className="text-xs text-gray-500 italic px-2">
+                          (Cannot revoke own certificate)
+                        </span>
+                      )}
                     </>
                   ) : (
                     <Button
