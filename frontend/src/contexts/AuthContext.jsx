@@ -69,11 +69,17 @@ export const AuthProvider = ({ children }) => {
   // Verify MFA TOTP code
   const verifyMFA = async (code) => {
     try {
-      await apiClient.post('/authentication/mfa/verify-totp/', { code });
+      // Verify MFA code - backend returns token + user data
+      const response = await apiClient.post('/authentication/mfa/verify-totp/', { code });
 
-      // Fetch user data after successful verification
-      const response = await apiClient.get('/users/me/');
-      setUser(response.data);
+      // Extract and store the authentication token
+      const { token, user: userData } = response.data;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+      }
+
+      // Set user data from response (no need to fetch again)
+      setUser(userData);
       setMfaStatus({ ...mfaStatus, mfa_verified: true });
 
       return { success: true };
@@ -113,6 +119,8 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear authentication token
+      localStorage.removeItem('auth_token');
       setUser(null);
       setMfaStatus(null);
       window.location.href = '/login';

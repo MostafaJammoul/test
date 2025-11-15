@@ -86,6 +86,9 @@ class PasswordTooSimple(NeedRedirectError):
 
     def __init__(self, url, *args, **kwargs):
         super().__init__(url, *args, **kwargs)
+        # Initialize detail attribute for proper string representation
+        if not hasattr(self, 'detail'):
+            self.detail = self.default_detail
 
 
 class PasswordNeedUpdate(NeedRedirectError):
@@ -94,6 +97,9 @@ class PasswordNeedUpdate(NeedRedirectError):
 
     def __init__(self, url, *args, **kwargs):
         super().__init__(url, *args, **kwargs)
+        # Initialize detail attribute for proper string representation
+        if not hasattr(self, 'detail'):
+            self.detail = self.default_detail
 
 
 class PasswordRequireResetError(NeedRedirectError):
@@ -102,11 +108,18 @@ class PasswordRequireResetError(NeedRedirectError):
 
     def __init__(self, url, *args, **kwargs):
         super().__init__(url, *args, **kwargs)
+        # Initialize detail attribute for proper string representation
+        if not hasattr(self, 'detail'):
+            self.detail = self.default_detail
 
 
 class MFAUnsetError(NeedRedirectError):
     error = const.reason_mfa_unset
     msg = const.mfa_unset_msg
+    default_detail = const.mfa_unset_msg
 
     def __init__(self, url, *args, **kwargs):
         super().__init__(url, *args, **kwargs)
+        # Initialize detail attribute for proper string representation
+        if not hasattr(self, 'detail'):
+            self.detail = self.default_detail if hasattr(self, 'default_detail') else self.msg

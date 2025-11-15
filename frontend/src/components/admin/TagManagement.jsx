@@ -1,21 +1,41 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { tagAPI } from '../../services/api';
 import Card from '../common/Card';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import Modal from '../common/Modal';
+import ConfirmDialog from '../common/ConfirmDialog';
+import { useToast } from '../../contexts/ToastContext';
 import { TAG_CATEGORY_DISPLAY } from '../../utils/constants';
 
 export default function TagManagement() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [expandedTagIds, setExpandedTagIds] = useState(new Set());
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  const toggleTagDescription = (tagId) => {
+    setExpandedTagIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(tagId)) {
+        newSet.delete(tagId);
+      } else {
+        newSet.add(tagId);
+      }
+      return newSet;
+    });
+  };
 
   const { data: tags, isLoading } = useQuery({
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await tagAPI.list();
-      return response.data.results;
+      // API returns array directly, not paginated {results: [...]}
+      console.log('Tags loaded:', response.data);
+      return Array.isArray(response.data) ? response.data : response.data.results || [];
     },
   });
 
@@ -24,6 +44,16 @@ export default function TagManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
       setIsCreateModalOpen(false);
+      showToast('Tag created successfully!', 'success');
+    },
+    onError: (error) => {
+      console.error('Tag creation error:', error);
+      const errorMsg = error.response?.data?.detail
+        || error.response?.data?.error
+        || JSON.stringify(error.response?.data)
+        || error.message
+        || 'Failed to create tag';
+      showToast(`Error creating tag: ${errorMsg}`, 'error', 6000);
     },
   });
 
@@ -31,8 +61,30 @@ export default function TagManagement() {
     mutationFn: tagAPI.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
+      showToast('Tag deleted successfully!', 'success');
+    },
+    onError: (error) => {
+      console.error('Tag deletion error:', error);
+      const errorMsg = error.response?.data?.detail
+        || error.response?.data?.error
+        || 'Failed to delete tag';
+      showToast(`Error deleting tag: ${errorMsg}`, 'error', 6000);
     },
   });
+
+  const handleDeleteTag = (tag) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Tag',
+      message: `Delete tag "${tag.name}"? This will remove it from all investigations using it.`,
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: () => {
+        deleteMutation.mutate(tag.id);
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+      }
+    });
+  };
 
   if (isLoading) return <div>Loading...</div>;
 
@@ -47,34 +99,53 @@ export default function TagManagement() {
         {tags?.map((tag) => (
           <div
             key={tag.id}
-            className="flex items-center justify-between p-3 border border-gray-200 rounded-md"
+            className="border border-gray-200 rounded-md"
           >
-            <div className="flex items-center space-x-3">
-              <div
-                className="w-6 h-6 rounded-full"
-                style={{ backgroundColor: tag.color }}
-              ></div>
-              <div>
-                <div className="font-medium">{tag.name}</div>
-                <div className="text-sm text-gray-500">
-                  {TAG_CATEGORY_DISPLAY[tag.category]}
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center space-x-3 flex-1">
+                <div
+                  className="w-6 h-6 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: tag.color }}
+                ></div>
+                <div className="flex-1">
+                  <div className="font-medium">{tag.name}</div>
+                  <div className="text-sm text-gray-500">
+                    {TAG_CATEGORY_DISPLAY[tag.category]}
+                  </div>
                 </div>
               </div>
+              <div className="flex items-center space-x-2">
+                <Badge>{tag.tagged_count || 0} cases</Badge>
+                {tag.description && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleTagDescription(tag.id)}
+                  >
+                    {expandedTagIds.has(tag.id) ? (
+                      <ChevronUpIcon className="h-4 w-4" />
+                    ) : (
+                      <ChevronDownIcon className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleDeleteTag(tag)}
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Badge>{tag.tagged_count} cases</Badge>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => {
-                  if (confirm(`Delete tag "${tag.name}"?`)) {
-                    deleteMutation.mutate(tag.id);
-                  }
-                }}
-              >
-                Delete
-              </Button>
-            </div>
+            {tag.description && expandedTagIds.has(tag.id) && (
+              <div className="px-3 pb-3 pt-0">
+                <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
+                  <span className="font-medium text-gray-900">Description: </span>
+                  {tag.description}
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -100,6 +171,17 @@ export default function TagManagement() {
           formId="create-tag-form"
         />
       </Modal>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        confirmVariant={confirmDialog.variant}
+      />
     </Card>
   );
 }

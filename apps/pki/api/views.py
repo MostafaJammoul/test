@@ -27,7 +27,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from common.permissions import IsValidUser
 from rbac.permissions import RBACPermission
 from orgs.mixins.api import OrgBulkModelViewSet
-from ..models import CertificateAuthority, UserCertificate, CertificateRevocation
+from ..models import CertificateAuthority, Certificate, CertificateRevocation
 from ..ca_manager import CAManager
 from .serializers import CertificateAuthoritySerializer, UserCertificateSerializer, CertificateRevocationSerializer
 
@@ -213,13 +213,13 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
         - Admin: Issue, revoke any certificate
         - Users: View and download their own certificates
     """
-    model = UserCertificate
+    model = Certificate
     serializer_class = UserCertificateSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user__username', 'user__name', 'subject_dn']
-    filterset_fields = ['user', 'status', 'ca']
-    ordering_fields = ['created_at', 'not_valid_after']
+    filterset_fields = ['user', 'revoked', 'ca']
+    ordering_fields = ['created_at', 'not_after']
 
     def get_queryset(self):
         """
@@ -301,10 +301,10 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             )
 
         # Check if user already has valid certificate
-        existing_cert = UserCertificate.objects.filter(
+        existing_cert = Certificate.objects.filter(
             user=target_user,
-            status='valid',
-            not_valid_after__gt=timezone.now()
+            revoked=False,
+            not_after__gt=timezone.now()
         ).first()
 
         if existing_cert:
@@ -312,7 +312,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
                 {
                     'error': 'User already has a valid certificate',
                     'certificate_id': str(existing_cert.id),
-                    'expires_at': existing_cert.not_valid_after.isoformat()
+                    'expires_at': existing_cert.not_after.isoformat()
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
@@ -339,17 +339,16 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             )
 
             # Create certificate record
-            user_cert = UserCertificate.objects.create(
+            user_cert = Certificate.objects.create(
                 ca=ca,
                 user=target_user,
                 certificate=cert_data['certificate_pem'],
                 private_key=cert_data['private_key_pem'],  # Encrypted by model
                 serial_number=cert_data['serial_number'],
                 subject_dn=cert_data['subject_dn'],
-                not_valid_before=cert_data['not_valid_before'],
-                not_valid_after=cert_data['not_valid_after'],
-                status='valid',
-                issued_by=request.user
+                not_before=cert_data['not_valid_before'],
+                not_after=cert_data['not_valid_after'],
+                revoked=False
             )
 
             logger.info(
@@ -398,10 +397,10 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
         if not (request.user == cert.user or request.user.is_superuser):
             raise PermissionDenied("You can only download your own certificates")
 
-        # Check if certificate is valid
-        if cert.status != 'valid':
+        # Check if certificate is revoked
+        if cert.revoked:
             return Response(
-                {'error': f'Certificate is {cert.status}, cannot download'},
+                {'error': 'Certificate is revoked, cannot download'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -471,23 +470,21 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             )
 
         # Check if already revoked
-        if cert.status == 'revoked':
+        if cert.revoked:
             return Response(
                 {'error': 'Certificate already revoked'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            # Revoke certificate
-            cert.status = 'revoked'
-            cert.save()
+            # Revoke certificate using model method
+            cert.revoke(reason=reason)
 
             # Create revocation record
             revocation = CertificateRevocation.objects.create(
                 certificate=cert,
                 reason=reason,
-                revoked_by=request.user,
-                revoked_at=timezone.now()
+                revoked_by=request.user
             )
 
             # TODO: Regenerate CRL and update nginx
@@ -537,7 +534,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             raise PermissionDenied("You can only renew your own certificates")
 
         # Check if certificate can be renewed
-        if old_cert.status == 'revoked':
+        if old_cert.revoked:
             return Response(
                 {'error': 'Cannot renew revoked certificate'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -555,22 +552,20 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             )
 
             # Create new certificate record
-            new_cert = UserCertificate.objects.create(
+            new_cert = Certificate.objects.create(
                 ca=old_cert.ca,
                 user=old_cert.user,
                 certificate=cert_data['certificate_pem'],
                 private_key=cert_data['private_key_pem'],
                 serial_number=cert_data['serial_number'],
                 subject_dn=cert_data['subject_dn'],
-                not_valid_before=cert_data['not_valid_before'],
-                not_valid_after=cert_data['not_valid_after'],
-                status='valid',
-                issued_by=request.user
+                not_before=cert_data['not_valid_before'],
+                not_after=cert_data['not_valid_after'],
+                revoked=False
             )
 
-            # Mark old certificate as superseded
-            old_cert.status = 'superseded'
-            old_cert.save()
+            # Revoke old certificate (superseded by new one)
+            old_cert.revoke(reason='superseded')
 
             logger.info(
                 f"Certificate {old_cert.serial_number} renewed as {new_cert.serial_number} "
@@ -581,9 +576,9 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
                 'status': 'success',
                 'new_certificate_id': str(new_cert.id),
                 'new_serial_number': new_cert.serial_number,
-                'not_valid_after': new_cert.not_valid_after.isoformat(),
+                'not_after': new_cert.not_after.isoformat(),
                 'download_url': f'/api/v1/pki/certificates/{new_cert.id}/download/',
-                'old_certificate_status': 'superseded'
+                'old_certificate_revoked': True
             })
 
         except Exception as e:

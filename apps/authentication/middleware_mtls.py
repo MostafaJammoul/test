@@ -202,8 +202,8 @@ class MFARequiredMiddleware(MiddlewareMixin):
                 }, status=403)
             return None
 
-        # Check if MFA is verified for this session
-        if not request.session.get('mfa_verified'):
+        # Check if MFA is verified for this session (using JumpServer's standard session key)
+        if not request.session.get('auth_mfa'):
             # Allow access to MFA challenge page, block everything else
             if not request.path.startswith('/mfa-challenge'):
                 return JsonResponse({

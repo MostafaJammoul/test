@@ -19,9 +19,12 @@ from io import BytesIO
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.conf import settings
 from django.utils import timezone
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 class MFASetupView(APIView):
@@ -30,8 +33,10 @@ class MFASetupView(APIView):
 
     GET: Returns QR code and secret for user to scan
     POST: Verifies TOTP code and saves secret to user account
+
+    Note: Allows unauthenticated access during login flow (uses session data)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         """
@@ -39,7 +44,22 @@ class MFASetupView(APIView):
 
         Database: No writes, only reads users_user to check current mfa_level
         """
-        user = request.user
+        # Check if user is authenticated OR has username in session (during login)
+        if request.user.is_authenticated:
+            user = request.user
+        elif 'auth_username' in request.session:
+            # User logged in but hasn't completed MFA yet
+            username = request.session.get('auth_username')
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Session expired, please login again'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({
+                'error': 'Authentication required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
 
         # Check if MFA already configured
         if user.mfa_level > 0 and user.otp_secret_key:
@@ -87,7 +107,22 @@ class MFASetupView(APIView):
         - users_user.otp_secret_key = secret
         - users_user.mfa_level = 2 (force enabled)
         """
-        user = request.user
+        # Check if user is authenticated OR has username in session (during login)
+        if request.user.is_authenticated:
+            user = request.user
+        elif 'auth_username' in request.session:
+            username = request.session.get('auth_username')
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Session expired, please login again'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({
+                'error': 'Authentication required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         code = request.data.get('code')
 
         if not code:
@@ -117,12 +152,38 @@ class MFASetupView(APIView):
         user.save(update_fields=['otp_secret_key', 'mfa_level'])
         # Database Transaction End
 
-        # Clear session
+        # Authenticate user in Django session
+        from django.contrib.auth import login as auth_login
+        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+        # Mark MFA as verified in session using JumpServer's standard keys
+        import time
+        request.session['auth_mfa'] = 1
+        request.session['auth_mfa_username'] = user.username
+        request.session['auth_mfa_time'] = time.time()
+        request.session['auth_mfa_required'] = 0
+        request.session['auth_mfa_type'] = 'totp'
+
+        # Clear pending secret
         del request.session['pending_mfa_secret']
+
+        # Generate authentication token for immediate use
+        token, date_expired = user.create_bearer_token(request)
+
+        # Update last login (already set by auth_login, but ensure it's saved)
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
+        # Import user serializer for response
+        from users.serializers import UserProfileSerializer
 
         return Response({
             'success': True,
-            'message': 'MFA configured successfully'
+            'message': 'MFA configured successfully',
+            'token': token,
+            'keyword': 'Bearer',
+            'date_expired': date_expired.strftime('%Y/%m/%d %H:%M:%S %z'),
+            'user': UserProfileSerializer(user).data
         })
 
 
@@ -131,8 +192,10 @@ class MFAVerifyView(APIView):
     Verify MFA code during login
 
     Database: Reads users_user.otp_secret_key, writes to django_session
+
+    Note: Allows unauthenticated access during login flow (uses session data)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         """
@@ -141,7 +204,22 @@ class MFAVerifyView(APIView):
         Database: Only reads users_user.otp_secret_key
         Session: Sets mfa_verified=True in django_session
         """
-        user = request.user
+        # Check if user is authenticated OR has username in session (during login)
+        if request.user.is_authenticated:
+            user = request.user
+        elif 'auth_username' in request.session:
+            username = request.session.get('auth_username')
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Session expired, please login again'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({
+                'error': 'Authentication required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         code = request.data.get('code')
 
         if not code:
@@ -161,14 +239,36 @@ class MFAVerifyView(APIView):
                 'error': 'Invalid MFA code'
             }, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Mark MFA as verified in session
+        # Authenticate user in Django session
+        from django.contrib.auth import login as auth_login
+        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+        # Mark MFA as verified in session using JumpServer's standard keys
         # Database Write: django_session table
-        request.session['mfa_verified'] = True
-        request.session['mfa_verified_at'] = str(timezone.now())
+        import time
+        request.session['auth_mfa'] = 1
+        request.session['auth_mfa_username'] = user.username
+        request.session['auth_mfa_time'] = time.time()
+        request.session['auth_mfa_required'] = 0
+        request.session['auth_mfa_type'] = 'totp'
+
+        # Generate authentication token for immediate use
+        token, date_expired = user.create_bearer_token(request)
+
+        # Update last login (already set by auth_login, but ensure it's saved)
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
+        # Import user serializer for response
+        from users.serializers import UserProfileSerializer
 
         return Response({
             'success': True,
-            'message': 'MFA verification successful'
+            'message': 'MFA verification successful',
+            'token': token,
+            'keyword': 'Bearer',
+            'date_expired': date_expired.strftime('%Y/%m/%d %H:%M:%S %z'),
+            'user': UserProfileSerializer(user).data
         })
 
 
@@ -178,29 +278,44 @@ class MFAStatusView(APIView):
 
     Database: Only reads users_user.mfa_level, users_user.otp_secret_key
 
-    Note: If user is authenticated via password (not certificate), MFA is not required.
+    Note: Allows unauthenticated access during login flow (uses session data)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
-        user = request.user
+        # Check if user is authenticated OR has username in session (during login)
+        if request.user.is_authenticated:
+            user = request.user
+        elif 'auth_username' in request.session:
+            username = request.session.get('auth_username')
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Session expired, please login again'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({
+                'error': 'Authentication required',
+                'mfa_configured': False,
+                'mfa_required': False,
+                'mfa_verified': False,
+                'needs_setup': False
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         auth_method = request.session.get('auth_method', 'unknown')
 
-        # If using traditional authentication (not certificate), MFA is optional
-        if auth_method != 'certificate':
-            return Response({
-                'auth_method': auth_method,
-                'mfa_configured': user.mfa_level > 0 and bool(user.otp_secret_key),
-                'mfa_required': False,  # Not required for password auth
-                'mfa_verified': True,  # Already authenticated
-                'needs_setup': False  # No setup needed for password auth
-            })
+        # MFA is now REQUIRED for ALL users (both password and certificate auth)
+        mfa_configured = user.mfa_level > 0 and bool(user.otp_secret_key)
+        # Check JumpServer's standard MFA session key
+        mfa_verified = bool(request.session.get('auth_mfa') and
+                           request.session.get('auth_mfa_username') == user.username)
+        needs_setup = not mfa_configured
 
-        # Certificate-based authentication requires MFA
         return Response({
-            'auth_method': 'certificate',
-            'mfa_configured': user.mfa_level > 0 and bool(user.otp_secret_key),
-            'mfa_required': True,
-            'mfa_verified': request.session.get('mfa_verified', False),
-            'needs_setup': user.mfa_level == 0 or not user.otp_secret_key
+            'auth_method': auth_method,
+            'mfa_configured': mfa_configured,
+            'mfa_required': True,  # Required for ALL users
+            'mfa_verified': mfa_verified,
+            'needs_setup': needs_setup
         })

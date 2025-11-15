@@ -64,9 +64,11 @@ class BlockchainRoleRequiredMixin:
         # Check if user has an allowed blockchain role
         from rbac.models import SystemRoleBinding
 
-        user_role_ids = SystemRoleBinding.objects.filter(
-            user=user
-        ).values_list('role_id', flat=True)
+        # Convert UUID objects to strings for comparison
+        user_role_ids = [
+            str(role_id) for role_id in
+            SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
+        ]
 
         has_blockchain_role = any(
             role_id in ALLOWED_BLOCKCHAIN_ROLE_IDS
@@ -76,7 +78,7 @@ class BlockchainRoleRequiredMixin:
         if not has_blockchain_role:
             logger.warning(
                 f"User {user.username} attempted to access blockchain API "
-                f"without authorized role. Roles: {list(user_role_ids)}"
+                f"without authorized role. Roles: {user_role_ids}"
             )
             # Return empty queryset - user not authorized
             return queryset.none()
@@ -792,8 +794,9 @@ class TagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         Admin creates categorization tags (crime type, priority, status)
         with color coding for UI display. Max 3 tags per investigation.
     """
-    queryset = Tag.objects.all()
+    model = Tag
     serializer_class = TagSerializer
+    perm_model = Tag
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'category', 'description']
@@ -828,7 +831,7 @@ class InvestigationTagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         BlockchainCourt assigns up to 3 tags from library to each investigation
         for filtering and organization in the UI dashboard.
     """
-    queryset = InvestigationTag.objects.all()
+    model = InvestigationTag
     serializer_class = InvestigationTagSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -871,7 +874,7 @@ class InvestigationNoteViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet)
         Investigators add timestamped notes to investigations. Notes are
         immutably recorded on blockchain for chain of custody audit trail.
     """
-    queryset = InvestigationNote.objects.all()
+    model = InvestigationNote
     serializer_class = InvestigationNoteSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -920,7 +923,7 @@ class InvestigationActivityViewSet(BlockchainRoleRequiredMixin, viewsets.ReadOnl
         note added, tag changed, status changed). Users can mark activities
         as viewed to track what's new.
     """
-    queryset = InvestigationActivity.objects.all()
+    model = InvestigationActivity
     serializer_class = InvestigationActivitySerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]

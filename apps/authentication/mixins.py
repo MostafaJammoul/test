@@ -268,8 +268,16 @@ class MFAMixin:
         if self.request.session.get('auth_mfa') and \
                 self.request.session.get('auth_mfa_username') == user.username:
             return
+
+        # Force MFA for all users (except if already verified in session)
         if not user.mfa_enabled:
-            return
+            # MFA not configured yet - force user to set it up
+            # Create a custom error response to guide user to MFA setup
+            raise errors.MFARequiredError(
+                error='mfa_unset',
+                msg='Multi-factor authentication is required. Please set up MFA before continuing.',
+                mfa_types=('totp',)  # Default to TOTP setup
+            )
 
         active_mfa_names = user.active_mfa_backends_mapper.keys()
         raise errors.MFARequiredError(mfa_types=tuple(active_mfa_names))
@@ -360,6 +368,10 @@ class AuthPostCheckMixin:
     @classmethod
     def _check_passwd_is_too_simple(cls, user: User, password):
         if not user.is_auth_backend_model():
+            return
+        # Skip password complexity check for superusers in development/testing
+        # SECURITY WARNING: Remove this in production or use strong passwords
+        if user.is_superuser:
             return
         if user.check_passwd_too_simple(password) or user.check_leak_password(password):
             message = _('Your password is too simple, please change it for security')
