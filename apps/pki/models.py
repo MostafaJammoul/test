@@ -111,6 +111,7 @@ class Certificate(models.Model):
     def __str__(self):
         return f"{self.subject_dn} ({self.serial_number})"
 
+    @property
     def is_valid(self):
         """Check if certificate is currently valid"""
         now = timezone.now()
