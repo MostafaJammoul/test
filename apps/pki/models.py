@@ -128,6 +128,37 @@ class Certificate(models.Model):
         self.save(update_fields=['revoked', 'revocation_date', 'revocation_reason'])
 
 
+class CertificateRevocation(models.Model):
+    """Certificate revocation history tracking"""
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    certificate = models.ForeignKey(
+        Certificate,
+        on_delete=models.CASCADE,
+        related_name='revocations',
+        verbose_name=_("Certificate")
+    )
+    reason = models.CharField(max_length=256, verbose_name=_("Reason"))
+    revoked_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='certificates_revoked',
+        verbose_name=_("Revoked By")
+    )
+    revoked_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Revoked At"))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
+
+    class Meta:
+        db_table = 'pki_certificate_revocation'
+        verbose_name = _("Certificate Revocation")
+        verbose_name_plural = _("Certificate Revocations")
+        ordering = ['-revoked_at']
+
+    def __str__(self):
+        return f"Revocation of {self.certificate.serial_number} at {self.revoked_at}"
+
+
 class CertificateRevocationList(models.Model):
     """Certificate Revocation List for checking revoked certificates"""
 
