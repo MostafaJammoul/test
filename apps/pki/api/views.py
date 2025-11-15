@@ -218,8 +218,8 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user__username', 'user__name', 'subject_dn']
-    filterset_fields = ['user', 'status', 'ca']
-    ordering_fields = ['created_at', 'not_valid_after']
+    filterset_fields = ['user', 'revoked', 'ca']
+    ordering_fields = ['created_at', 'not_after']
 
     def get_queryset(self):
         """
