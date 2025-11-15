@@ -4,7 +4,7 @@
 PKI API Serializers
 """
 from rest_framework import serializers
-from ..models import CertificateAuthority, Certificate
+from ..models import CertificateAuthority, Certificate, CertificateRevocation
 
 
 class CertificateAuthoritySerializer(serializers.ModelSerializer):
@@ -63,3 +63,22 @@ class CertificateSerializer(serializers.ModelSerializer):
         if obj.not_after:
             return timezone.now() > obj.not_after
         return False
+
+
+# Alias for compatibility
+UserCertificateSerializer = CertificateSerializer
+
+
+class CertificateRevocationSerializer(serializers.ModelSerializer):
+    """Certificate revocation history serializer"""
+    certificate_serial = serializers.CharField(source='certificate.serial_number', read_only=True)
+    revoked_by_username = serializers.CharField(source='revoked_by.username', read_only=True)
+
+    class Meta:
+        model = CertificateRevocation
+        fields = [
+            'id', 'certificate', 'certificate_serial', 'reason',
+            'revoked_by', 'revoked_by_username', 'revoked_at', 'created_at'
+        ]
+        read_only_fields = ['id', 'revoked_by', 'revoked_at', 'created_at']
+
