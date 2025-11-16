@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Card from '../common/Card';
 import Button from '../common/Button';
@@ -16,6 +16,10 @@ export default function UserManagement() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'primary' });
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [createdAfter, setCreatedAfter] = useState('');
+  const [createdBefore, setCreatedBefore] = useState('');
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { user: currentUser } = useAuth();
@@ -185,6 +189,69 @@ export default function UserManagement() {
     return user.system_roles.map(role => role.display_name || role.name || 'Unknown Role');
   };
 
+  const userRoleMatchesFilter = (user) => {
+    if (roleFilter === 'all') return true;
+    const roleIds = new Set((user.system_roles || []).map((role) => role.id));
+
+    switch (roleFilter) {
+      case 'admin':
+        return roleIds.has(ROLES.SYSTEM_ADMIN);
+      case 'investigator':
+        return roleIds.has(ROLES.BLOCKCHAIN_INVESTIGATOR);
+      case 'auditor':
+        return roleIds.has(ROLES.BLOCKCHAIN_AUDITOR);
+      case 'court':
+        return roleIds.has(ROLES.BLOCKCHAIN_COURT);
+      case 'no-blockchain':
+        return roleIds.size === 0;
+      default:
+        return true;
+    }
+  };
+
+  const getUserCreatedDate = (user) => {
+    const raw = user.date_joined || user.created_at || user.last_login || null;
+    return raw ? new Date(raw) : null;
+  };
+
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    const normalizedSearch = userSearch.trim().toLowerCase();
+    const afterDate = createdAfter ? new Date(createdAfter) : null;
+    const beforeDate = createdBefore ? new Date(createdBefore) : null;
+    if (beforeDate) {
+      beforeDate.setHours(23, 59, 59, 999);
+    }
+
+    return users.filter((user) => {
+      const matchesSearch = !normalizedSearch
+        || [user.username, user.name, user.email]
+          .filter(Boolean)
+          .some((value) => value.toString().toLowerCase().includes(normalizedSearch));
+
+      if (!matchesSearch) return false;
+      if (!userRoleMatchesFilter(user)) return false;
+
+      if (afterDate || beforeDate) {
+        const created = getUserCreatedDate(user);
+        if (!created) return false;
+        if (afterDate && created < afterDate) return false;
+        if (beforeDate && created > beforeDate) return false;
+      }
+
+      return true;
+    });
+  }, [users, userSearch, roleFilter, createdAfter, createdBefore]);
+
+  const roleFilterOptions = [
+    { value: 'all', label: 'All Roles' },
+    { value: 'admin', label: ROLE_NAMES[ROLES.SYSTEM_ADMIN] || 'System Admin' },
+    { value: 'investigator', label: ROLE_NAMES[ROLES.BLOCKCHAIN_INVESTIGATOR] || 'Investigator' },
+    { value: 'auditor', label: ROLE_NAMES[ROLES.BLOCKCHAIN_AUDITOR] || 'Auditor' },
+    { value: 'court', label: ROLE_NAMES[ROLES.BLOCKCHAIN_COURT] || 'Court' },
+    { value: 'no-blockchain', label: 'No Blockchain Role' },
+  ];
+
   if (isLoading) {
     return (
       <Card title="User Management">
@@ -196,6 +263,8 @@ export default function UserManagement() {
     );
   }
 
+  const hasUsers = Array.isArray(users) && users.length > 0;
+
   return (
     <Card
       title="User Management"
@@ -203,18 +272,83 @@ export default function UserManagement() {
         <Button onClick={() => setIsCreateModalOpen(true)}>Create User</Button>
       }
     >
-      {!users || users.length === 0 ? (
+      {!hasUsers ? (
         <div className="text-center py-8 text-gray-500">
           <p>No users found. Create your first user!</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {users.map((user) => (
-            <div
-              key={user.id}
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
-            >
-              {/* User Info */}
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+              <input
+                type="text"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search by username, name, or email"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              >
+                {roleFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:col-span-2 lg:col-span-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Created After</label>
+                <input
+                  type="date"
+                  value={createdAfter}
+                  onChange={(e) => setCreatedAfter(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Created Before</label>
+                <input
+                  type="date"
+                  value={createdBefore}
+                  onChange={(e) => setCreatedBefore(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {filteredUsers.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 border border-dashed border-gray-300 rounded-md">
+              <p>No users match the current filters.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setUserSearch('');
+                  setRoleFilter('all');
+                  setCreatedAfter('');
+                  setCreatedBefore('');
+                }}
+                className="mt-2 text-sm text-primary-600 hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
+                >
+                  {/* User Info */}
               <div className="flex items-center space-x-4 flex-1">
                 <div className="flex-shrink-0">
                   <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
@@ -285,9 +419,11 @@ export default function UserManagement() {
                   </Button>
                 )}
               </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {/* Create User Modal */}
