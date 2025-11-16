@@ -1,8 +1,11 @@
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import Layout from '../../components/layout/Layout';
 import TagManagement from '../../components/admin/TagManagement';
 import UserManagement from '../../components/admin/UserManagement';
 import CertificateManagement from '../../components/admin/CertificateManagement';
+import { investigationAPI, tagAPI } from '../../services/api';
+import apiClient from '../../services/api';
 
 export default function AdminDashboard() {
   const location = useLocation();
@@ -57,20 +60,94 @@ export default function AdminDashboard() {
 }
 
 function AdminOverview() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['admin-dashboard-overview'],
+    queryFn: async () => {
+      const countParams = { page: 1, page_size: 1, limit: 1 };
+
+      const [investigationRes, userRes, tagRes, certificateRes] = await Promise.all([
+        investigationAPI.list(countParams),
+        apiClient.get('/users/users/'),
+        tagAPI.list(),
+        apiClient.get('/pki/certificates/'),
+      ]);
+
+      const parseCount = (payload) => {
+        if (typeof payload?.count === 'number') return payload.count;
+        if (Array.isArray(payload)) return payload.length;
+        if (Array.isArray(payload?.results)) return payload.results.length;
+        return 0;
+      };
+
+      const toArray = (payload) => {
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.results)) return payload.results;
+        return [];
+      };
+
+      const investigationsCount = parseCount(investigationRes.data);
+      const usersList = toArray(userRes.data);
+      const tagsList = toArray(tagRes.data);
+      const certificatesList = toArray(certificateRes.data);
+
+      const now = new Date();
+      const activeCertificates = certificatesList.filter((cert) => {
+        if (cert.revoked) return false;
+        if (cert.is_valid !== undefined) return cert.is_valid;
+        const expiry = cert.not_after ? new Date(cert.not_after) : null;
+        if (!expiry) return true;
+        return expiry > now;
+      }).length;
+      const inactiveCertificates = certificatesList.length - activeCertificates;
+
+      return {
+        investigations: investigationsCount,
+        users: usersList.length,
+        tags: tagsList.length,
+        activeCertificates,
+        inactiveCertificates,
+      };
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const metrics = [
+    { title: 'Total Investigations', key: 'investigations' },
+    { title: 'Total Users', key: 'users' },
+    { title: 'Active Tags', key: 'tags' },
+    { title: 'Active Certificates', key: 'activeCertificates' },
+    { title: 'Inactive Certificates', key: 'inactiveCertificates' },
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <StatsCard title="Total Investigations" value="42" />
-      <StatsCard title="Total Users" value="15" />
-      <StatsCard title="Active Tags" value="28" />
+    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+      {metrics.map((metric) => (
+        <StatsCard
+          key={metric.key}
+          title={metric.title}
+          value={data?.[metric.key] ?? 0}
+          loading={isLoading}
+          error={isError}
+        />
+      ))}
     </div>
   );
 }
 
-function StatsCard({ title, value }) {
+function StatsCard({ title, value, loading, error }) {
+  let displayValue = value;
+  if (loading) {
+    displayValue = '...';
+  } else if (error) {
+    displayValue = '—';
+  } else if (typeof value === 'number') {
+    displayValue = value.toLocaleString();
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h3 className="text-sm font-medium text-gray-600">{title}</h3>
-      <p className="mt-2 text-3xl font-bold text-gray-900">{value}</p>
+      <p className="mt-2 text-3xl font-bold text-gray-900">{displayValue}</p>
     </div>
   );
 }
