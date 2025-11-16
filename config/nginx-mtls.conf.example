@@ -34,6 +34,8 @@ server {
     listen 80;
     listen [::]:80;
     server_name jumpserver.example.com;
+    root /opt/jumpserver/frontend/dist;
+    index index.html;
 
     # Redirect all HTTP to HTTPS
     return 301 https://$server_name$request_uri;
@@ -70,9 +72,9 @@ server {
 
     # Verification mode:
     #   - on: Require client certificate (strict mTLS)
-    #   - optional: Allow clients with or without certificates
+    #   - optional: Allow clients with or without certificates (recommended for admin password login)
     #   - optional_no_ca: Accept any certificate
-    ssl_verify_client on;
+    ssl_verify_client optional;
 
     # Verification depth (certificate chain length)
     # 1 = CA → Client (simple)
@@ -146,40 +148,17 @@ server {
     }
 
     # =============================================================================
-    # DJANGO BACKEND (Reverse Proxy)
+    # FRONTEND SPA (React build served by nginx)
     # =============================================================================
+    # Build once: cd frontend && npm install && npm run build
+    # Output directory: frontend/dist (adjust `root` above if different)
     location / {
-        # Pass request to Django
-        proxy_pass http://jumpserver_backend;
+        try_files $uri /index.html;
+    }
 
-        # CRITICAL: Pass client certificate to Django
-        # Django's MTLSBackend reads these headers to authenticate the user
-        proxy_set_header X-SSL-Client-Cert $ssl_client_cert;
-        proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
-        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
-        proxy_set_header X-SSL-Client-Serial $ssl_client_serial;
-
-        # Standard proxy headers
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-
-        # WebSocket support (for Django Channels if needed)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 300s;
-        proxy_read_timeout 300s;
-
-        # Buffering
-        proxy_buffering off;
-        proxy_request_buffering off;
+    # Dedicated admin login route (password + MFA)
+    location /admin/ {
+        try_files $uri /index.html;
     }
 
     # =============================================================================
@@ -206,6 +185,22 @@ server {
 
         # Increase body size for evidence uploads
         client_max_body_size 10G;
+    }
+
+    # WebSocket endpoints (terminal streaming, etc.)
+    location /ws/ {
+        proxy_pass http://jumpserver_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header X-SSL-Client-Cert $ssl_client_cert;
+        proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
+        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # =============================================================================

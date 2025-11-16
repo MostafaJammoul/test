@@ -28,6 +28,7 @@ from users.models import User
 from users.utils import LoginBlockUtil, MFABlockUtils, LoginIpBlockUtil
 from . import errors
 from .signals import post_auth_success, post_auth_failed
+from rbac.builtin import BuiltinRole
 
 logger = get_logger(__name__)
 
@@ -597,12 +598,29 @@ class AuthMixin(CommonMixin, AuthPreCheckMixin, AuthACLMixin, AuthFaceMixin, MFA
 
         # 校验login-mfa, 如果登录页面上显示 mfa 的话
         self._check_login_page_mfa_if_need(user)
+        self._ensure_password_allowed(user)
 
         # 标记密码验证成功
         self.mark_password_ok(user=user, auto_login=auto_login)
         LoginBlockUtil(user.username, ip).clean_failed_count()
         LoginIpBlockUtil(ip).clean_block_if_need()
         return user
+
+    def _ensure_password_allowed(self, user):
+        if user.is_superuser:
+            return
+        admin_role_id = BuiltinRole.system_admin.id
+        if user.system_roles.filter(id=admin_role_id).exists():
+            return
+        msg = errors.reason_choices.get(
+            errors.reason_password_restricted,
+            _("Password login is restricted to administrators. Use certificate authentication.")
+        )
+        raise errors.AuthFailedError(
+            error=errors.reason_password_restricted,
+            msg=msg,
+            username=user.username
+        )
 
     def mark_password_ok(self, user, auto_login=False, auth_backend=None):
         request = self.request
