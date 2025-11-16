@@ -402,6 +402,14 @@ export default function UserManagement() {
                     <span>@{user.username}</span>
                     <span>{user.email}</span>
                   </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Joined{' '}
+                    {user.date_joined
+                      ? new Date(user.date_joined).toLocaleDateString()
+                      : user.created_at
+                        ? new Date(user.created_at).toLocaleDateString()
+                        : 'Unknown'}
+                  </div>
                   <div className="flex items-center space-x-2 mt-1">
                     {getUserRoleNames(user).map((roleName, idx) => (
                       <Badge key={idx} variant="info">{roleName}</Badge>
