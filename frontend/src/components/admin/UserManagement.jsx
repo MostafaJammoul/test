@@ -769,9 +769,9 @@ function UserCreateForm({ onSubmit, formId, isLoading }) {
         >
           <option value="User">User (No blockchain access)</option>
           <option value="Admin">System Admin (Full access)</option>
-          <option value="Auditor">Blockchain Auditor (Read-only)</option>
-          <option value="Investigator">Blockchain Investigator (Upload evidence)</option>
-          <option value="Court">Blockchain Court (Manage investigations)</option>
+          <option value="Auditor">Auditor (Read-only)</option>
+          <option value="Investigator">Investigator (Upload evidence)</option>
+          <option value="Court">Court (Manage investigations)</option>
         </select>
         <p className="mt-1 text-xs text-gray-500">
           Choose a role to assign specific permissions for blockchain evidence management
@@ -882,9 +882,9 @@ function UserEditForm({ user, onSubmit, formId, isLoading }) {
         >
           <option value="User">User (No blockchain access)</option>
           <option value="Admin">System Admin (Full access)</option>
-          <option value="Auditor">Blockchain Auditor (Read-only)</option>
-          <option value="Investigator">Blockchain Investigator (Upload evidence)</option>
-          <option value="Court">Blockchain Court (Manage investigations)</option>
+          <option value="Auditor">Auditor (Read-only)</option>
+          <option value="Investigator">Investigator (Upload evidence)</option>
+          <option value="Court">Court (Manage investigations)</option>
         </select>
       </div>
 
