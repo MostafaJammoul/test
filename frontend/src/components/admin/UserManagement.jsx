@@ -183,30 +183,44 @@ export default function UserManagement() {
 
   // Get role display names for a user
   const getUserRoleNames = (user) => {
-    if (!user.system_roles || user.system_roles.length === 0) {
+    const roles = user.system_roles || [];
+    if (roles.length === 0) {
       return ['User'];
     }
-    return user.system_roles.map(role => role.display_name || role.name || 'Unknown Role');
+
+    const seen = new Set();
+    const friendlyNames = [];
+    roles.forEach((role) => {
+      const friendly = ROLE_NAMES[role.id] || role.display_name || role.name || 'Unknown Role';
+      if (!seen.has(friendly)) {
+        seen.add(friendly);
+        friendlyNames.push(friendly);
+      }
+    });
+
+    return friendlyNames;
   };
 
   const userRoleMatchesFilter = (user) => {
     if (roleFilter === 'all') return true;
+
     const roleIds = new Set((user.system_roles || []).map((role) => role.id));
 
-    switch (roleFilter) {
-      case 'admin':
-        return roleIds.has(ROLES.SYSTEM_ADMIN);
-      case 'investigator':
-        return roleIds.has(ROLES.BLOCKCHAIN_INVESTIGATOR);
-      case 'auditor':
-        return roleIds.has(ROLES.BLOCKCHAIN_AUDITOR);
-      case 'court':
-        return roleIds.has(ROLES.BLOCKCHAIN_COURT);
-      case 'no-blockchain':
-        return roleIds.size === 0;
-      default:
-        return true;
+    if (roleFilter === 'no-blockchain') {
+      for (const id of roleIds) {
+        if (blockchainRoleIds.has(id)) {
+          return false;
+        }
+      }
+      return true;
     }
+
+    const targetRoleId = filterRoleIdMap[roleFilter];
+    if (targetRoleId) {
+      return roleIds.has(targetRoleId);
+    }
+
+    return true;
   };
 
   const getUserCreatedDate = (user) => {
@@ -242,6 +256,19 @@ export default function UserManagement() {
       return true;
     });
   }, [users, userSearch, roleFilter, createdAfter, createdBefore]);
+
+  const filterRoleIdMap = {
+    admin: ROLES.SYSTEM_ADMIN,
+    investigator: ROLES.BLOCKCHAIN_INVESTIGATOR,
+    auditor: ROLES.BLOCKCHAIN_AUDITOR,
+    court: ROLES.BLOCKCHAIN_COURT,
+  };
+
+  const blockchainRoleIds = new Set([
+    ROLES.BLOCKCHAIN_INVESTIGATOR,
+    ROLES.BLOCKCHAIN_AUDITOR,
+    ROLES.BLOCKCHAIN_COURT,
+  ]);
 
   const roleFilterOptions = [
     { value: 'all', label: 'All Roles' },
