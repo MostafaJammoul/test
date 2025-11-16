@@ -24,18 +24,20 @@ export default function UserManagement() {
   const { showToast } = useToast();
   const { user: currentUser } = useAuth();
 
-  const filterRoleIdMap = useMemo(() => ({
-    admin: ROLES.SYSTEM_ADMIN,
-    investigator: ROLES.BLOCKCHAIN_INVESTIGATOR,
-    auditor: ROLES.BLOCKCHAIN_AUDITOR,
-    court: ROLES.BLOCKCHAIN_COURT,
-  }), []);
+  const normalizeRoleId = (roleId) => (typeof roleId === 'string' ? roleId.toUpperCase() : roleId);
 
-  const blockchainRoleIds = useMemo(() => new Set([
-    ROLES.BLOCKCHAIN_INVESTIGATOR,
-    ROLES.BLOCKCHAIN_AUDITOR,
-    ROLES.BLOCKCHAIN_COURT,
-  ]), []);
+  const filterRoleIdMap = {
+    admin: normalizeRoleId(ROLES.SYSTEM_ADMIN),
+    investigator: normalizeRoleId(ROLES.BLOCKCHAIN_INVESTIGATOR),
+    auditor: normalizeRoleId(ROLES.BLOCKCHAIN_AUDITOR),
+    court: normalizeRoleId(ROLES.BLOCKCHAIN_COURT),
+  };
+
+  const blockchainRoleIds = new Set([
+    normalizeRoleId(ROLES.BLOCKCHAIN_INVESTIGATOR),
+    normalizeRoleId(ROLES.BLOCKCHAIN_AUDITOR),
+    normalizeRoleId(ROLES.BLOCKCHAIN_COURT),
+  ]);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -204,7 +206,7 @@ export default function UserManagement() {
     const seen = new Set();
     const friendlyNames = [];
     roles.forEach((role) => {
-      const friendly = ROLE_NAMES[role.id] || role.display_name || role.name || 'Unknown Role';
+      const friendly = ROLE_NAMES[normalizeRoleId(role.id)] || role.display_name || role.name || 'Unknown Role';
       if (!seen.has(friendly)) {
         seen.add(friendly);
         friendlyNames.push(friendly);
@@ -217,7 +219,7 @@ export default function UserManagement() {
   const userRoleMatchesFilter = (user) => {
     if (roleFilter === 'all') return true;
 
-    const roleIds = new Set((user.system_roles || []).map((role) => role.id));
+    const roleIds = new Set((user.system_roles || []).map((role) => normalizeRoleId(role.id)));
 
     if (roleFilter === 'no-blockchain') {
       for (const id of roleIds) {
