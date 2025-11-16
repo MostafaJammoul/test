@@ -88,8 +88,6 @@ export default function TagManagement() {
     });
   };
 
-  if (isLoading) return <div>Loading...</div>;
-
   const filteredTags = useMemo(() => {
     if (!tags) return [];
     const normalized = tagSearch.trim().toLowerCase();
@@ -99,6 +97,8 @@ export default function TagManagement() {
       return matchesSearch && matchesCategory;
     });
   }, [tags, tagSearch, categoryFilter]);
+
+  if (isLoading) return <div>Loading...</div>;
 
   return (
     <Card
@@ -152,57 +152,54 @@ export default function TagManagement() {
       ) : (
         <div className="space-y-2">
           {filteredTags.map((tag) => (
-            <div
-              key={tag.id}
-              className="border border-gray-200 rounded-md"
-            >
+            <div key={tag.id} className="border border-gray-200 rounded-md">
               <div className="flex items-center justify-between p-3">
-              <div className="flex items-center space-x-3 flex-1">
-                <div
-                  className="w-6 h-6 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: tag.color }}
-                ></div>
-                <div className="flex-1">
-                  <div className="font-medium">{tag.name}</div>
-                  <div className="text-sm text-gray-500">
-                    {TAG_CATEGORY_DISPLAY[tag.category]}
+                <div className="flex items-center space-x-3 flex-1">
+                  <div
+                    className="w-6 h-6 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: tag.color }}
+                  ></div>
+                  <div className="flex-1">
+                    <div className="font-medium">{tag.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {TAG_CATEGORY_DISPLAY[tag.category]}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Badge>{tag.tagged_count || 0} cases</Badge>
-                {tag.description && (
+                <div className="flex items-center space-x-2">
+                  <Badge>{tag.tagged_count || 0} cases</Badge>
+                  {tag.description && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleTagDescription(tag.id)}
+                    >
+                      {expandedTagIds.has(tag.id) ? (
+                        <ChevronUpIcon className="h-4 w-4" />
+                      ) : (
+                        <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                   <Button
-                    variant="outline"
+                    variant="danger"
                     size="sm"
-                    onClick={() => toggleTagDescription(tag.id)}
+                    onClick={() => handleDeleteTag(tag)}
                   >
-                    {expandedTagIds.has(tag.id) ? (
-                      <ChevronUpIcon className="h-4 w-4" />
-                    ) : (
-                      <ChevronDownIcon className="h-4 w-4" />
-                    )}
+                    Delete
                   </Button>
-                )}
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => handleDeleteTag(tag)}
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
-            {tag.description && expandedTagIds.has(tag.id) && (
-              <div className="px-3 pb-3 pt-0">
-                <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
-                  <span className="font-medium text-gray-900">Description: </span>
-                  {tag.description}
                 </div>
               </div>
-            )}
-              </div>
-            ))}
+              {tag.description && expandedTagIds.has(tag.id) && (
+                <div className="px-3 pb-3 pt-0">
+                  <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
+                    <span className="font-medium text-gray-900">Description: </span>
+                    {tag.description}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
