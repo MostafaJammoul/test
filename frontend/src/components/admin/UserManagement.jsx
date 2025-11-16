@@ -24,6 +24,19 @@ export default function UserManagement() {
   const { showToast } = useToast();
   const { user: currentUser } = useAuth();
 
+  const filterRoleIdMap = useMemo(() => ({
+    admin: ROLES.SYSTEM_ADMIN,
+    investigator: ROLES.BLOCKCHAIN_INVESTIGATOR,
+    auditor: ROLES.BLOCKCHAIN_AUDITOR,
+    court: ROLES.BLOCKCHAIN_COURT,
+  }), []);
+
+  const blockchainRoleIds = useMemo(() => new Set([
+    ROLES.BLOCKCHAIN_INVESTIGATOR,
+    ROLES.BLOCKCHAIN_AUDITOR,
+    ROLES.BLOCKCHAIN_COURT,
+  ]), []);
+
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
@@ -256,19 +269,6 @@ export default function UserManagement() {
       return true;
     });
   }, [users, userSearch, roleFilter, createdAfter, createdBefore]);
-
-  const filterRoleIdMap = {
-    admin: ROLES.SYSTEM_ADMIN,
-    investigator: ROLES.BLOCKCHAIN_INVESTIGATOR,
-    auditor: ROLES.BLOCKCHAIN_AUDITOR,
-    court: ROLES.BLOCKCHAIN_COURT,
-  };
-
-  const blockchainRoleIds = new Set([
-    ROLES.BLOCKCHAIN_INVESTIGATOR,
-    ROLES.BLOCKCHAIN_AUDITOR,
-    ROLES.BLOCKCHAIN_COURT,
-  ]);
 
   const roleFilterOptions = [
     { value: 'all', label: 'All Roles' },
