@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Card from '../common/Card';
 import Button from '../common/Button';
@@ -6,6 +6,7 @@ import Badge from '../common/Badge';
 import Modal from '../common/Modal';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { ROLE_NAMES, ROLES } from '../../utils/constants';
 import apiClient from '../../services/api';
 
@@ -15,8 +16,28 @@ export default function UserManagement() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'primary' });
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [createdAfter, setCreatedAfter] = useState('');
+  const [createdBefore, setCreatedBefore] = useState('');
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { user: currentUser } = useAuth();
+
+  const normalizeRoleId = (roleId) => (typeof roleId === 'string' ? roleId.toUpperCase() : roleId);
+
+  const filterRoleIdMap = {
+    admin: normalizeRoleId(ROLES.SYSTEM_ADMIN),
+    investigator: normalizeRoleId(ROLES.BLOCKCHAIN_INVESTIGATOR),
+    auditor: normalizeRoleId(ROLES.BLOCKCHAIN_AUDITOR),
+    court: normalizeRoleId(ROLES.BLOCKCHAIN_COURT),
+  };
+
+  const blockchainRoleIds = new Set([
+    normalizeRoleId(ROLES.BLOCKCHAIN_INVESTIGATOR),
+    normalizeRoleId(ROLES.BLOCKCHAIN_AUDITOR),
+    normalizeRoleId(ROLES.BLOCKCHAIN_COURT),
+  ]);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -131,8 +152,9 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = (user) => {
-    if (user.username === 'admin') {
-      showToast('Cannot delete the admin user!', 'warning');
+    // Prevent self-deletion
+    if (currentUser && user.id === currentUser.id) {
+      showToast('You cannot delete your own account! This would lock you out of the system.', 'error');
       return;
     }
 
@@ -152,6 +174,12 @@ export default function UserManagement() {
     const newStatus = !user.is_active;
     const action = newStatus ? 'Activate' : 'Deactivate';
 
+    // Prevent self-deactivation
+    if (currentUser && user.id === currentUser.id && !newStatus) {
+      showToast('You cannot deactivate your own account! This would lock you out of the system.', 'error');
+      return;
+    }
+
     setConfirmDialog({
       isOpen: true,
       title: `${action} User`,
@@ -170,11 +198,88 @@ export default function UserManagement() {
 
   // Get role display names for a user
   const getUserRoleNames = (user) => {
-    if (!user.system_roles || user.system_roles.length === 0) {
+    const roles = user.system_roles || [];
+    if (roles.length === 0) {
       return ['User'];
     }
-    return user.system_roles.map(role => role.display_name || role.name || 'Unknown Role');
+
+    const seen = new Set();
+    const friendlyNames = [];
+    roles.forEach((role) => {
+      const friendly = ROLE_NAMES[normalizeRoleId(role.id)] || role.display_name || role.name || 'Unknown Role';
+      if (!seen.has(friendly)) {
+        seen.add(friendly);
+        friendlyNames.push(friendly);
+      }
+    });
+
+    return friendlyNames;
   };
+
+  const userRoleMatchesFilter = (user) => {
+    if (roleFilter === 'all') return true;
+
+    const roleIds = new Set((user.system_roles || []).map((role) => normalizeRoleId(role.id)));
+
+    if (roleFilter === 'no-blockchain') {
+      for (const id of roleIds) {
+        if (blockchainRoleIds.has(id)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    const targetRoleId = filterRoleIdMap[roleFilter];
+    if (targetRoleId) {
+      return roleIds.has(targetRoleId);
+    }
+
+    return true;
+  };
+
+  const getUserCreatedDate = (user) => {
+    const raw = user.date_joined || user.created_at || user.last_login || null;
+    return raw ? new Date(raw) : null;
+  };
+
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    const normalizedSearch = userSearch.trim().toLowerCase();
+    const afterDate = createdAfter ? new Date(createdAfter) : null;
+    const beforeDate = createdBefore ? new Date(createdBefore) : null;
+    if (beforeDate) {
+      beforeDate.setHours(23, 59, 59, 999);
+    }
+
+    return users.filter((user) => {
+      const matchesSearch = !normalizedSearch
+        || [user.username, user.name, user.email]
+          .filter(Boolean)
+          .some((value) => value.toString().toLowerCase().includes(normalizedSearch));
+
+      if (!matchesSearch) return false;
+      if (!userRoleMatchesFilter(user)) return false;
+
+      if (afterDate || beforeDate) {
+        const created = getUserCreatedDate(user);
+        if (!created) return false;
+        if (afterDate && created < afterDate) return false;
+        if (beforeDate && created > beforeDate) return false;
+      }
+
+      return true;
+    });
+  }, [users, userSearch, roleFilter, createdAfter, createdBefore]);
+
+  const roleFilterOptions = [
+    { value: 'all', label: 'All Roles' },
+    { value: 'admin', label: ROLE_NAMES[ROLES.SYSTEM_ADMIN] || 'System Admin' },
+    { value: 'investigator', label: ROLE_NAMES[ROLES.BLOCKCHAIN_INVESTIGATOR] || 'Investigator' },
+    { value: 'auditor', label: ROLE_NAMES[ROLES.BLOCKCHAIN_AUDITOR] || 'Auditor' },
+    { value: 'court', label: ROLE_NAMES[ROLES.BLOCKCHAIN_COURT] || 'Court' },
+    { value: 'no-blockchain', label: 'No Blockchain Role' },
+  ];
 
   if (isLoading) {
     return (
@@ -187,6 +292,8 @@ export default function UserManagement() {
     );
   }
 
+  const hasUsers = Array.isArray(users) && users.length > 0;
+
   return (
     <Card
       title="User Management"
@@ -194,18 +301,83 @@ export default function UserManagement() {
         <Button onClick={() => setIsCreateModalOpen(true)}>Create User</Button>
       }
     >
-      {!users || users.length === 0 ? (
+      {!hasUsers ? (
         <div className="text-center py-8 text-gray-500">
           <p>No users found. Create your first user!</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {users.map((user) => (
-            <div
-              key={user.id}
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
-            >
-              {/* User Info */}
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+              <input
+                type="text"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search by username, name, or email"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              >
+                {roleFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:col-span-2 lg:col-span-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Created After</label>
+                <input
+                  type="date"
+                  value={createdAfter}
+                  onChange={(e) => setCreatedAfter(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Created Before</label>
+                <input
+                  type="date"
+                  value={createdBefore}
+                  onChange={(e) => setCreatedBefore(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {filteredUsers.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 border border-dashed border-gray-300 rounded-md">
+              <p>No users match the current filters.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setUserSearch('');
+                  setRoleFilter('all');
+                  setCreatedAfter('');
+                  setCreatedBefore('');
+                }}
+                className="mt-2 text-sm text-primary-600 hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
+                >
+                  {/* User Info */}
               <div className="flex items-center space-x-4 flex-1">
                 <div className="flex-shrink-0">
                   <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
@@ -229,6 +401,14 @@ export default function UserManagement() {
                   <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500">
                     <span>@{user.username}</span>
                     <span>{user.email}</span>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Joined{' '}
+                    {user.date_joined
+                      ? new Date(user.date_joined).toLocaleDateString()
+                      : user.created_at
+                        ? new Date(user.created_at).toLocaleDateString()
+                        : 'Unknown'}
                   </div>
                   <div className="flex items-center space-x-2 mt-1">
                     {getUserRoleNames(user).map((roleName, idx) => (
@@ -260,11 +440,13 @@ export default function UserManagement() {
                   variant={user.is_active ? 'danger' : 'success'}
                   size="sm"
                   onClick={() => toggleUserStatus(user)}
+                  disabled={currentUser && user.id === currentUser.id && user.is_active}
+                  title={currentUser && user.id === currentUser.id && user.is_active ? 'Cannot deactivate your own account' : ''}
                 >
                   {user.is_active ? 'Deactivate' : 'Activate'}
                 </Button>
 
-                {user.username !== 'admin' && (
+                {currentUser && user.id !== currentUser.id && (
                   <Button
                     variant="danger"
                     size="sm"
@@ -274,9 +456,11 @@ export default function UserManagement() {
                   </Button>
                 )}
               </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {/* Create User Modal */}
@@ -593,9 +777,9 @@ function UserCreateForm({ onSubmit, formId, isLoading }) {
         >
           <option value="User">User (No blockchain access)</option>
           <option value="Admin">System Admin (Full access)</option>
-          <option value="Auditor">Blockchain Auditor (Read-only)</option>
-          <option value="Investigator">Blockchain Investigator (Upload evidence)</option>
-          <option value="Court">Blockchain Court (Manage investigations)</option>
+          <option value="Auditor">Auditor (Read-only)</option>
+          <option value="Investigator">Investigator (Upload evidence)</option>
+          <option value="Court">Court (Manage investigations)</option>
         </select>
         <p className="mt-1 text-xs text-gray-500">
           Choose a role to assign specific permissions for blockchain evidence management
@@ -706,9 +890,9 @@ function UserEditForm({ user, onSubmit, formId, isLoading }) {
         >
           <option value="User">User (No blockchain access)</option>
           <option value="Admin">System Admin (Full access)</option>
-          <option value="Auditor">Blockchain Auditor (Read-only)</option>
-          <option value="Investigator">Blockchain Investigator (Upload evidence)</option>
-          <option value="Court">Blockchain Court (Manage investigations)</option>
+          <option value="Auditor">Auditor (Read-only)</option>
+          <option value="Investigator">Investigator (Upload evidence)</option>
+          <option value="Court">Court (Manage investigations)</option>
         </select>
       </div>
 

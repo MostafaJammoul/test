@@ -9,6 +9,7 @@ import Dashboard from './pages/dashboard/Dashboard';
 import InvestigationListPage from './pages/dashboard/InvestigationListPage';
 import InvestigationDetailPage from './pages/dashboard/InvestigationDetailPage';
 import NotFound from './pages/NotFound';
+import CertificateRequired from './pages/CertificateRequired';
 
 // Loading spinner component
 const LoadingSpinner = () => (
@@ -20,11 +21,17 @@ const LoadingSpinner = () => (
 // Protected route wrapper
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { user, loading, mfaStatus, isAdmin } = useAuth();
+  const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
 
   if (loading) return <LoadingSpinner />;
 
-  // User not authenticated - redirect to login
-  if (!user) return <Navigate to="/login" replace />;
+  // User not authenticated
+  if (!user) {
+    if (isAdminRoute) {
+      return <Navigate to="/admin" replace />;
+    }
+    return <CertificateRequired />;
+  }
 
   // Password auth - MFA not required, skip MFA checks
   if (mfaStatus?.auth_method === 'password') {
@@ -46,8 +53,9 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Login Page (password authentication) */}
-      <Route path="/login" element={<Login />} />
+      {/* Admin Login Page */}
+      <Route path="/admin" element={<Login />} />
+      <Route path="/login" element={<Navigate to="/admin" replace />} />
 
       {/* MFA Setup Page (first-time enrollment) */}
       <Route path="/setup-mfa" element={<MFASetup />} />

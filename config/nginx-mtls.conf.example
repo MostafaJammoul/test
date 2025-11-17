@@ -1,285 +1,132 @@
 # =============================================================================
-# Nginx mTLS Configuration for JumpServer Chain of Custody
-# =============================================================================
-#
-# This configuration enables mutual TLS authentication between users and JumpServer.
-#
-# Architecture:
-#   User (Browser + mTLS cert) → Nginx (mTLS verification) → Django (backend validation)
-#
-# Certificate Flow:
-#   1. User presents certificate issued by your Internal CA
-#   2. Nginx verifies certificate against Internal CA
-#   3. Nginx passes certificate to Django via headers
-#   4. Django authentication/backends/mtls.py validates and authenticates user
-#
-# Setup:
-#   1. Copy this file: cp nginx-mtls.conf.example /etc/nginx/sites-available/jumpserver
-#   2. Create symlink: ln -s /etc/nginx/sites-available/jumpserver /etc/nginx/sites-enabled/
-#   3. Export Internal CA cert: python manage.py export_ca_cert --output /etc/nginx/ssl/internal-ca.crt
-#   4. Obtain server certificate (from Let's Encrypt or internal CA)
-#   5. Test config: nginx -t
-#   6. Reload: nginx -s reload
-#
+# Nginx mTLS + SPA Deployment for JumpServer
 # =============================================================================
 
-# Upstream Django backend
 upstream jumpserver_backend {
     server 127.0.0.1:8080;
     keepalive 32;
 }
 
-# HTTP → HTTPS redirect
 server {
     listen 80;
     listen [::]:80;
     server_name jumpserver.example.com;
-
-    # Redirect all HTTP to HTTPS
     return 301 https://$server_name$request_uri;
 }
 
-# HTTPS server with mTLS
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
     server_name jumpserver.example.com;
+    root /opt/jumpserver/frontend/dist;
+    index index.html;
 
-    # =============================================================================
-    # SERVER CERTIFICATE (Nginx's identity to clients)
-    # =============================================================================
-    # This can be from any public CA (Let's Encrypt, DigiCert, etc.)
-    # It's NOT related to the Internal CA used for user certificates
-    #
-    # Generate with Let's Encrypt:
-    #   certbot certonly --nginx -d jumpserver.example.com
-    #
-    # Or use internal CA (separate from user Internal CA):
-    #   openssl req -new -x509 -days 365 -key server.key -out server.crt
-    #
     ssl_certificate /etc/letsencrypt/live/jumpserver.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/jumpserver.example.com/privkey.pem;
 
-    # =============================================================================
-    # CLIENT CERTIFICATE VERIFICATION (Users' mTLS certs)
-    # =============================================================================
-    # This IS your Internal CA - verifies user certificates
-    # Export from Django: python manage.py export_ca_cert --output /etc/nginx/ssl/internal-ca.crt
-    #
     ssl_client_certificate /etc/nginx/ssl/internal-ca.crt;
-
-    # Verification mode:
-    #   - on: Require client certificate (strict mTLS)
-    #   - optional: Allow clients with or without certificates
-    #   - optional_no_ca: Accept any certificate
-    ssl_verify_client on;
-
-    # Verification depth (certificate chain length)
-    # 1 = CA → Client (simple)
-    # 2 = Root CA → Intermediate CA → Client
+    ssl_verify_client optional;
     ssl_verify_depth 2;
-
-    # Certificate Revocation List (optional but recommended)
-    # Export from Django: python manage.py export_crl --output /etc/nginx/ssl/internal-ca.crl
-    # Update periodically via cron:
-    #   0 */6 * * * python /path/to/manage.py export_crl --output /etc/nginx/ssl/internal-ca.crl && nginx -s reload
     ssl_crl /etc/nginx/ssl/internal-ca.crl;
 
-    # =============================================================================
-    # SSL/TLS SETTINGS
-    # =============================================================================
     ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256';
-    ssl_prefer_server_ciphers on;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
-    ssl_session_tickets off;
 
-    # HSTS (HTTP Strict Transport Security)
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-
-    # =============================================================================
-    # SECURITY HEADERS
-    # =============================================================================
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "no-referrer-when-downgrade" always;
 
-    # =============================================================================
-    # CLIENT CERTIFICATE ERROR PAGES
-    # =============================================================================
-    # Custom error pages for certificate issues
-    error_page 495 496 /certificate-error.html;
     location = /certificate-error.html {
         root /usr/share/nginx/html;
         internal;
     }
 
-    # =============================================================================
-    # LOGGING
-    # =============================================================================
-    # Log client certificate details for debugging
-    access_log /var/log/nginx/jumpserver-access.log combined;
-    error_log /var/log/nginx/jumpserver-error.log warn;
-
-    # Custom log format with certificate info
     log_format mtls '$remote_addr - $remote_user [$time_local] '
                     '"$request" $status $body_bytes_sent '
                     '"$http_referer" "$http_user_agent" '
                     'cert_verify=$ssl_client_verify cert_dn="$ssl_client_s_dn"';
-
     access_log /var/log/nginx/jumpserver-mtls.log mtls;
 
-    # =============================================================================
-    # STATIC FILES (Optional - if serving via nginx)
-    # =============================================================================
     location /static/ {
-        alias /path/to/jumpserver/data/static/;
+        alias /opt/jumpserver/data/static/;
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
 
     location /media/ {
-        alias /path/to/jumpserver/data/media/;
+        alias /opt/jumpserver/data/media/;
         expires 7d;
     }
 
-    # =============================================================================
-    # DJANGO BACKEND (Reverse Proxy)
-    # =============================================================================
+    # -------------------------------------------------------------------------
+    # Frontend SPA (cert users) - falls back to index.html
     location / {
-        # Pass request to Django
-        proxy_pass http://jumpserver_backend;
+        try_files $uri /index.html;
+    }
 
-        # CRITICAL: Pass client certificate to Django
-        # Django's MTLSBackend reads these headers to authenticate the user
+    # Admin password/MFA interface
+    location ^~ /admin {
+        proxy_pass http://jumpserver_backend;
         proxy_set_header X-SSL-Client-Cert $ssl_client_cert;
         proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
         proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
-        proxy_set_header X-SSL-Client-Serial $ssl_client_serial;
-
-        # Standard proxy headers
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
-
-        # WebSocket support (for Django Channels if needed)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 300s;
-        proxy_read_timeout 300s;
-
-        # Buffering
-        proxy_buffering off;
-        proxy_request_buffering off;
     }
 
-    # =============================================================================
-    # API ENDPOINTS (Optional specific handling)
-    # =============================================================================
-    location /api/ {
+    # Django core endpoints (MFA, login guard, etc.)
+    location ^~ /core/ {
         proxy_pass http://jumpserver_backend;
-
-        # Same certificate headers
         proxy_set_header X-SSL-Client-Cert $ssl_client_cert;
         proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
         proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
-
-        # Standard headers
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
 
-        # API-specific timeouts (longer for evidence upload)
+    location ^~ /api/ {
+        proxy_pass http://jumpserver_backend;
+        proxy_set_header X-SSL-Client-Cert $ssl_client_cert;
+        proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
+        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_connect_timeout 60s;
-        proxy_send_timeout 600s;  # 10 minutes for large file uploads
+        proxy_send_timeout 600s;
         proxy_read_timeout 600s;
-
-        # Increase body size for evidence uploads
         client_max_body_size 10G;
     }
 
-    # =============================================================================
-    # HEALTH CHECK (No mTLS required)
-    # =============================================================================
+    location ^~ /ws/ {
+        proxy_pass http://jumpserver_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header X-SSL-Client-Cert $ssl_client_cert;
+        proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
+        proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     location /api/health/ {
         proxy_pass http://jumpserver_backend;
-
-        # Allow without certificate for monitoring
         satisfy any;
         allow all;
-
-        # Don't log health checks
         access_log off;
     }
 }
-
-# =============================================================================
-# TESTING THE CONFIGURATION
-# =============================================================================
-#
-# 1. Test nginx config syntax:
-#    nginx -t
-#
-# 2. Reload nginx:
-#    systemctl reload nginx
-#
-# 3. Test with curl (without certificate - should fail):
-#    curl -v https://jumpserver.example.com/api/health/
-#    Expected: 400 Bad Request (No required SSL certificate was sent)
-#
-# 4. Test with certificate:
-#    curl -v \
-#      --cert /path/to/user.p12 \
-#      --cert-type P12 \
-#      --pass <p12-password> \
-#      https://jumpserver.example.com/api/health/
-#    Expected: 200 OK
-#
-# 5. Test in browser:
-#    - Import user.p12 into browser (Firefox: Settings → Privacy & Security → Certificates → View Certificates → Import)
-#    - Visit https://jumpserver.example.com
-#    - Browser should prompt to select certificate
-#    - After selection, you should be authenticated automatically
-#
-# =============================================================================
-
-# =============================================================================
-# TROUBLESHOOTING
-# =============================================================================
-#
-# Error: 400 Bad Request (No required SSL certificate was sent)
-#   - User doesn't have certificate installed in browser
-#   - Certificate not issued by your Internal CA
-#   - Fix: Issue certificate via /api/v1/pki/certificates/issue/
-#
-# Error: 495 SSL Certificate Error
-#   - Certificate expired
-#   - Certificate revoked (check CRL)
-#   - Certificate chain invalid
-#   - Fix: Renew certificate via /api/v1/pki/certificates/{id}/renew/
-#
-# Error: 496 SSL Certificate Required
-#   - Nginx configured with ssl_verify_client on but client didn't send cert
-#   - Fix: Import .p12 file into browser
-#
-# Certificate not accepted even though valid:
-#   - Check nginx error log: tail -f /var/log/nginx/jumpserver-error.log
-#   - Check nginx has correct CA cert: openssl x509 -in /etc/nginx/ssl/internal-ca.crt -text -noout
-#   - Verify certificate chain: openssl verify -CAfile /etc/nginx/ssl/internal-ca.crt user-cert.pem
-#
-# Django not receiving certificate:
-#   - Check Django logs: tail -f logs/jumpserver.log
-#   - Verify headers in Django view: print(request.META.get('HTTP_X_SSL_CLIENT_DN'))
-#   - Ensure proxy_set_header directives are present in nginx config
-#
-# =============================================================================

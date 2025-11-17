@@ -330,39 +330,29 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
             ca_manager = CAManager()
 
             # Issue certificate
-            cert_data = ca_manager.issue_user_certificate(
+            # Note: CAManager.issue_user_certificate only accepts ca, user, validity_days
+            # It always generates RSA 2048-bit keys (hardcoded in ca_manager.py)
+            certificate = ca_manager.issue_user_certificate(
                 ca=ca,
                 user=target_user,
-                validity_days=validity_days,
-                key_algorithm=key_algorithm,
-                key_size=key_size if key_algorithm == 'rsa' else None
+                validity_days=validity_days
             )
 
-            # Create certificate record
-            user_cert = Certificate.objects.create(
-                ca=ca,
-                user=target_user,
-                certificate=cert_data['certificate_pem'],
-                private_key=cert_data['private_key_pem'],  # Encrypted by model
-                serial_number=cert_data['serial_number'],
-                subject_dn=cert_data['subject_dn'],
-                not_before=cert_data['not_valid_before'],
-                not_after=cert_data['not_valid_after'],
-                revoked=False
-            )
+            # Certificate is created and saved by CAManager.issue_user_certificate
+            user_cert = certificate
 
             logger.info(
-                f"Certificate {cert_data['serial_number']} issued to {target_user.username} "
+                f"Certificate {user_cert.serial_number} issued to {target_user.username} "
                 f"by {request.user.username}"
             )
 
             return Response({
                 'status': 'success',
                 'certificate_id': str(user_cert.id),
-                'serial_number': cert_data['serial_number'],
-                'subject_dn': cert_data['subject_dn'],
-                'not_valid_before': cert_data['not_valid_before'].isoformat(),
-                'not_valid_after': cert_data['not_valid_after'].isoformat(),
+                'serial_number': user_cert.serial_number,
+                'subject_dn': user_cert.subject_dn,
+                'not_valid_before': user_cert.not_before.isoformat(),
+                'not_valid_after': user_cert.not_after.isoformat(),
                 'download_url': f'/api/v1/pki/certificates/{user_cert.id}/download/'
             }, status=status.HTTP_201_CREATED)
 
@@ -436,8 +426,7 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
 
         Request payload:
             - reason: Revocation reason (required)
-                Options: 'unspecified', 'key_compromise', 'ca_compromise',
-                        'affiliation_changed', 'superseded', 'cessation_of_operation'
+                Admin can type any descriptive text (stored in audit trail)
 
         Process:
             1. Mark certificate as revoked
@@ -452,20 +441,25 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
         """
         cert = self.get_object()
 
+        # Prevent self-revocation
+        if cert.user == request.user:
+            return Response(
+                {'error': 'You cannot revoke your own certificate. This would lock you out of the system.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Check permission
         if not (request.user.is_superuser or request.user.has_perm('pki.revoke_certificate')):
             raise PermissionDenied("Insufficient permissions to revoke certificates")
 
-        reason = request.data.get('reason', 'unspecified')
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            reason = 'Unspecified'
 
-        valid_reasons = [
-            'unspecified', 'key_compromise', 'ca_compromise',
-            'affiliation_changed', 'superseded', 'cessation_of_operation'
-        ]
-
-        if reason not in valid_reasons:
+        max_reason_length = Certificate._meta.get_field('revocation_reason').max_length or 256
+        if len(reason) > max_reason_length:
             return Response(
-                {'error': f'Invalid reason. Must be one of: {", ".join(valid_reasons)}'},
+                {'error': f'Revocation reason cannot exceed {max_reason_length} characters'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -545,24 +539,13 @@ class UserCertificateViewSet(OrgBulkModelViewSet):
 
             # Issue new certificate
             ca_manager = CAManager()
-            cert_data = ca_manager.issue_user_certificate(
+            new_cert = ca_manager.issue_user_certificate(
                 ca=old_cert.ca,
                 user=old_cert.user,
                 validity_days=validity_days
             )
 
-            # Create new certificate record
-            new_cert = Certificate.objects.create(
-                ca=old_cert.ca,
-                user=old_cert.user,
-                certificate=cert_data['certificate_pem'],
-                private_key=cert_data['private_key_pem'],
-                serial_number=cert_data['serial_number'],
-                subject_dn=cert_data['subject_dn'],
-                not_before=cert_data['not_valid_before'],
-                not_after=cert_data['not_valid_after'],
-                revoked=False
-            )
+            # Certificate is created and saved by CAManager.issue_user_certificate
 
             # Revoke old certificate (superseded by new one)
             old_cert.revoke(reason='superseded')

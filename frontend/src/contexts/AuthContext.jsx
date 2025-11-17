@@ -31,7 +31,10 @@ export const AuthProvider = ({ children }) => {
         // Certificate auth requires MFA
         if (status.needs_setup) {
           setLoading(false);
-          if (window.location.pathname !== '/setup-mfa' && window.location.pathname !== '/login') {
+          if (
+            window.location.pathname !== '/setup-mfa' &&
+            !window.location.pathname.startsWith('/admin')
+          ) {
             window.location.href = '/setup-mfa';
           }
           return;
@@ -39,7 +42,10 @@ export const AuthProvider = ({ children }) => {
 
         if (!status.mfa_verified) {
           setLoading(false);
-          if (window.location.pathname !== '/mfa-challenge' && window.location.pathname !== '/login') {
+          if (
+            window.location.pathname !== '/mfa-challenge' &&
+            !window.location.pathname.startsWith('/admin')
+          ) {
             window.location.href = '/mfa-challenge';
           }
           return;
@@ -53,10 +59,17 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setMfaStatus(null);
 
-        // Don't redirect if already on login page, MFA pages, or public pages
-        const publicPages = ['/login', '/setup-mfa', '/mfa-challenge'];
-        if (!publicPages.includes(window.location.pathname)) {
-          window.location.href = '/login';
+        // Don't redirect if already on allowed pages
+        const publicPages = ['/admin', '/setup-mfa', '/mfa-challenge'];
+        const adminOnlyRoutes = ['/admin', '/admin-dashboard'];
+        const currentPath = window.location.pathname;
+        const isAdminArea = adminOnlyRoutes.some((path) =>
+          currentPath.startsWith(path)
+        );
+        if (isAdminArea && currentPath !== '/admin') {
+          window.location.href = '/admin';
+        } else if (publicPages.includes(currentPath)) {
+          // stay on the current page
         }
       } finally {
         setLoading(false);
@@ -114,6 +127,7 @@ export const AuthProvider = ({ children }) => {
 
   // Logout function
   const logout = async () => {
+    const wasAdmin = isAdmin();
     try {
       await apiClient.post('/authentication/logout/');
     } catch (error) {
@@ -123,7 +137,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('auth_token');
       setUser(null);
       setMfaStatus(null);
-      window.location.href = '/login';
+      window.location.href = wasAdmin ? '/admin' : '/';
     }
   };
 

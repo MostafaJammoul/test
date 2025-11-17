@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { tagAPI } from '../../services/api';
@@ -14,6 +14,8 @@ export default function TagManagement() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [expandedTagIds, setExpandedTagIds] = useState(new Set());
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  const [tagSearch, setTagSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const queryClient = useQueryClient();
   const { showToast } = useToast();
 
@@ -86,6 +88,16 @@ export default function TagManagement() {
     });
   };
 
+  const filteredTags = useMemo(() => {
+    if (!tags) return [];
+    const normalized = tagSearch.trim().toLowerCase();
+    return tags.filter((tag) => {
+      const matchesSearch = !normalized || tag.name.toLowerCase().includes(normalized);
+      const matchesCategory = categoryFilter === 'all' || tag.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    });
+  }, [tags, tagSearch, categoryFilter]);
+
   if (isLoading) return <div>Loading...</div>;
 
   return (
@@ -95,60 +107,101 @@ export default function TagManagement() {
         <Button onClick={() => setIsCreateModalOpen(true)}>Create Tag</Button>
       }
     >
-      <div className="space-y-2">
-        {tags?.map((tag) => (
-          <div
-            key={tag.id}
-            className="border border-gray-200 rounded-md"
+      <div className="grid gap-4 md:grid-cols-2 mb-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Search Tags</label>
+          <input
+            type="text"
+            value={tagSearch}
+            onChange={(e) => setTagSearch(e.target.value)}
+            placeholder="Search by tag name"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
           >
-            <div className="flex items-center justify-between p-3">
-              <div className="flex items-center space-x-3 flex-1">
-                <div
-                  className="w-6 h-6 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: tag.color }}
-                ></div>
-                <div className="flex-1">
-                  <div className="font-medium">{tag.name}</div>
-                  <div className="text-sm text-gray-500">
-                    {TAG_CATEGORY_DISPLAY[tag.category]}
+            <option value="all">All Categories</option>
+            <option value="crime_type">Crime Type</option>
+            <option value="priority">Priority</option>
+            <option value="status">Status</option>
+          </select>
+        </div>
+      </div>
+
+      {filteredTags.length === 0 ? (
+        <div className="border border-dashed border-gray-300 rounded-md py-8 text-center text-gray-500">
+          <p>No tags match the current filters.</p>
+          {(tagSearch || categoryFilter !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setTagSearch('');
+                setCategoryFilter('all');
+              }}
+              className="mt-2 text-sm text-primary-600 hover:underline"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredTags.map((tag) => (
+            <div key={tag.id} className="border border-gray-200 rounded-md">
+              <div className="flex items-center justify-between p-3">
+                <div className="flex items-center space-x-3 flex-1">
+                  <div
+                    className="w-6 h-6 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: tag.color }}
+                  ></div>
+                  <div className="flex-1">
+                    <div className="font-medium">{tag.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {TAG_CATEGORY_DISPLAY[tag.category]}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Badge>{tag.tagged_count || 0} cases</Badge>
-                {tag.description && (
+                <div className="flex items-center space-x-2">
+                  <Badge>{tag.tagged_count || 0} cases</Badge>
+                  {tag.description && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleTagDescription(tag.id)}
+                    >
+                      {expandedTagIds.has(tag.id) ? (
+                        <ChevronUpIcon className="h-4 w-4" />
+                      ) : (
+                        <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                   <Button
-                    variant="outline"
+                    variant="danger"
                     size="sm"
-                    onClick={() => toggleTagDescription(tag.id)}
+                    onClick={() => handleDeleteTag(tag)}
                   >
-                    {expandedTagIds.has(tag.id) ? (
-                      <ChevronUpIcon className="h-4 w-4" />
-                    ) : (
-                      <ChevronDownIcon className="h-4 w-4" />
-                    )}
+                    Delete
                   </Button>
-                )}
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => handleDeleteTag(tag)}
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
-            {tag.description && expandedTagIds.has(tag.id) && (
-              <div className="px-3 pb-3 pt-0">
-                <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
-                  <span className="font-medium text-gray-900">Description: </span>
-                  {tag.description}
                 </div>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+              {tag.description && expandedTagIds.has(tag.id) && (
+                <div className="px-3 pb-3 pt-0">
+                  <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
+                    <span className="font-medium text-gray-900">Description: </span>
+                    {tag.description}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Create Tag Modal */}
       <Modal
