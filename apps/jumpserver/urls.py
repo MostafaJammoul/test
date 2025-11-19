@@ -65,8 +65,8 @@ if settings.XPACK_ENABLED:
 
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
-    # Django Admin Interface
-    path('admin/', admin.site.urls),
+    # Django Admin Interface (moved to /django-admin/ to avoid conflict with React /admin route)
+    path('django-admin/', admin.site.urls),
     path('api/v1/', include(api_v1)),
     path('api/health/', api.HealthCheckView.as_view(), name="health"),
     path('api/v1/health/', api.HealthCheckView.as_view(), name="health_v1"),

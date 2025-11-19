@@ -135,8 +135,18 @@ export const AuthProvider = ({ children }) => {
     } finally {
       // Clear authentication token
       localStorage.removeItem('auth_token');
+
+      // Clear all cookies (force Django session to be removed)
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
       setUser(null);
       setMfaStatus(null);
+
+      // Force full page reload to clear all state
       window.location.href = wasAdmin ? '/admin' : '/';
     }
   };
