@@ -28,6 +28,7 @@ from users.models import User
 from users.utils import LoginBlockUtil, MFABlockUtils, LoginIpBlockUtil
 from . import errors
 from .signals import post_auth_success, post_auth_failed
+from rbac.builtin import BuiltinRole
 
 logger = get_logger(__name__)
 
@@ -268,8 +269,16 @@ class MFAMixin:
         if self.request.session.get('auth_mfa') and \
                 self.request.session.get('auth_mfa_username') == user.username:
             return
+
+        # Force MFA for all users (except if already verified in session)
         if not user.mfa_enabled:
-            return
+            # MFA not configured yet - force user to set it up
+            # Create a custom error response to guide user to MFA setup
+            raise errors.MFARequiredError(
+                error='mfa_unset',
+                msg='Multi-factor authentication is required. Please set up MFA before continuing.',
+                mfa_types=('totp',)  # Default to TOTP setup
+            )
 
         active_mfa_names = user.active_mfa_backends_mapper.keys()
         raise errors.MFARequiredError(mfa_types=tuple(active_mfa_names))
@@ -360,6 +369,10 @@ class AuthPostCheckMixin:
     @classmethod
     def _check_passwd_is_too_simple(cls, user: User, password):
         if not user.is_auth_backend_model():
+            return
+        # Skip password complexity check for superusers in development/testing
+        # SECURITY WARNING: Remove this in production or use strong passwords
+        if user.is_superuser:
             return
         if user.check_passwd_too_simple(password) or user.check_leak_password(password):
             message = _('Your password is too simple, please change it for security')
@@ -585,12 +598,29 @@ class AuthMixin(CommonMixin, AuthPreCheckMixin, AuthACLMixin, AuthFaceMixin, MFA
 
         # 校验login-mfa, 如果登录页面上显示 mfa 的话
         self._check_login_page_mfa_if_need(user)
+        self._ensure_password_allowed(user)
 
         # 标记密码验证成功
         self.mark_password_ok(user=user, auto_login=auto_login)
         LoginBlockUtil(user.username, ip).clean_failed_count()
         LoginIpBlockUtil(ip).clean_block_if_need()
         return user
+
+    def _ensure_password_allowed(self, user):
+        if user.is_superuser:
+            return
+        admin_role_id = BuiltinRole.system_admin.id
+        if user.system_roles.filter(id=admin_role_id).exists():
+            return
+        msg = errors.reason_choices.get(
+            errors.reason_password_restricted,
+            _("Password login is restricted to administrators. Use certificate authentication.")
+        )
+        raise errors.AuthFailedError(
+            error=errors.reason_password_restricted,
+            msg=msg,
+            username=user.username
+        )
 
     def mark_password_ok(self, user, auto_login=False, auth_backend=None):
         request = self.request

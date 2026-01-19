@@ -60,9 +60,20 @@ class UserViewSet(CommonApiMixin, UserQuerysetMixin, SuggestionMixin, BulkModelV
         return True
 
     def perform_destroy(self, instance):
-        if instance.username == 'admin':
-            raise PermissionDenied(_("Cannot delete the admin user. Please disable it instead."))
+        # Prevent self-deletion - users cannot delete their own account
+        if instance.id == self.request.user.id:
+            raise PermissionDenied(_("You cannot delete your own account. This would lock you out of the system."))
         super().perform_destroy(instance)
+
+    def perform_update(self, serializer):
+        # Prevent self-deactivation - users cannot deactivate their own account
+        instance = self.get_object()
+        if instance.id == self.request.user.id:
+            # Check if trying to deactivate (is_active going from True to False)
+            is_active_in_data = serializer.validated_data.get('is_active')
+            if is_active_in_data is not None and not is_active_in_data and instance.is_active:
+                raise PermissionDenied(_("You cannot deactivate your own account. This would lock you out of the system."))
+        super().perform_update(serializer)
 
     @action(methods=['get'], detail=False, url_path='suggestions')
     def match(self, request, *args, **kwargs):

@@ -63,10 +63,10 @@ export default function Login() {
             </svg>
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            JumpServer Blockchain
+            Administrator Login
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Chain of Custody System
+            Password access is restricted to System Administrators. All other users must log in with their mTLS certificate.
           </p>
         </div>
 

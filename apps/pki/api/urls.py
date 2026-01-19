@@ -2,11 +2,12 @@
 PKI API URLs
 """
 from rest_framework.routers import DefaultRouter
-from . import certificate
+from . import views
 
 app_name = 'pki'
 
 router = DefaultRouter()
-router.register('certificates', certificate.CertificateViewSet, basename='certificate')
+# Use UserCertificateViewSet which has issue/revoke/renew actions
+router.register('certificates', views.UserCertificateViewSet, basename='certificate')
 
 urlpatterns = router.urls

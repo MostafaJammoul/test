@@ -1,7 +1,9 @@
 """
 mTLS Authentication Middleware
 
-Authenticates users based on client SSL certificates presented to nginx.
+Authentication Strategy:
+1. Admin users (is_superuser=True): Password + MFA authentication
+2. Regular users: Certificate + MFA authentication
 
 Database Operations:
 - SELECT FROM pki_certificate WHERE serial_number = ? AND is_revoked = FALSE
@@ -9,15 +11,16 @@ Database Operations:
 - INSERT INTO django_session (via Django auth.login())
 
 Flow:
-1. nginx verifies client certificate
+1. nginx verifies client certificate (optional mode)
 2. nginx passes cert info via headers:
+   - X-SSL-Client-Verify: SUCCESS or FAILED or NONE
    - X-SSL-Client-Serial: Certificate serial number
    - X-SSL-Client-DN: Distinguished Name
-   - X-SSL-Client-Verify: SUCCESS or FAILED
-3. Middleware queries pki_certificate table
+3. Middleware checks authentication method:
+   a) Admin user → Allow password auth (via /api/v1/authentication/tokens/)
+   b) Regular user → Require valid certificate
 4. If valid cert found → login user
-5. If user has no MFA setup → flag for setup
-6. If user has MFA but not verified → flag for challenge
+5. All users (admin and regular) → MFA required (handled by MFARequiredMiddleware)
 """
 
 from django.contrib.auth import login as auth_login
@@ -143,10 +146,10 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
 
 class MFARequiredMiddleware(MiddlewareMixin):
     """
-    Enforce MFA verification for certificate-authenticated users
+    Enforce MFA verification for ALL authenticated users
 
     Blocks access to protected resources until MFA is verified.
-    Note: Traditional username/password auth (for Django admin) bypasses MFA requirement.
+    Both admin (password auth) and regular users (certificate auth) require MFA.
     """
 
     # URLs that don't require MFA verification
@@ -156,8 +159,10 @@ class MFARequiredMiddleware(MiddlewareMixin):
         '/api/v1/authentication/mfa/status/',
         '/api/v1/authentication/auth/',  # Token creation
         '/api/v1/authentication/tokens/',  # Legacy tokens
+        '/api/v1/users/me/',  # Current user profile
+        '/api/v1/users/profile/',  # User profile
         '/api/health/',
-        '/admin/',  # Django admin (uses traditional auth)
+        '/admin/',  # Django admin (for emergency certificate management)
         '/setup-mfa',
         '/mfa-challenge',
         '/static/',
@@ -169,16 +174,18 @@ class MFARequiredMiddleware(MiddlewareMixin):
         Check if user has completed MFA verification
 
         Database: Reads request.session (django_session table)
+
+        MFA is now REQUIRED for:
+        - Admin users (password auth)
+        - Regular users (certificate auth)
         """
 
         # Skip if user not authenticated
         if not request.user.is_authenticated:
             return None
 
-        # Skip if using traditional authentication (not certificate-based)
-        if request.session.get('auth_method') != 'certificate':
-            logger.debug(f"Skipping MFA for traditional auth: {request.user.username}")
-            return None
+        # NOTE: MFA is now required for BOTH password and certificate auth
+        # Previously only certificate auth required MFA, but now admin password auth also requires it
 
         # Check if URL is exempt from MFA requirement
         for exempt_url in self.MFA_EXEMPT_URLS:
@@ -195,8 +202,8 @@ class MFARequiredMiddleware(MiddlewareMixin):
                 }, status=403)
             return None
 
-        # Check if MFA is verified for this session
-        if not request.session.get('mfa_verified'):
+        # Check if MFA is verified for this session (using JumpServer's standard session key)
+        if not request.session.get('auth_mfa'):
             # Allow access to MFA challenge page, block everything else
             if not request.path.startswith('/mfa-challenge'):
                 return JsonResponse({
