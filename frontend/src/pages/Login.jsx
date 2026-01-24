@@ -17,12 +17,19 @@ export default function Login() {
 
     try {
       // Login with username/password
-      await apiClient.post('/authentication/tokens/', {
+      const loginResponse = await apiClient.post('/authentication/tokens/', {
         username,
         password,
       });
 
-      // Check MFA status after login
+      // Check if response indicates MFA needs to be set up (200 OK with error field)
+      if (loginResponse.data?.error === 'mfa_unset') {
+        // MFA not configured - redirect to setup
+        navigate('/setup-mfa');
+        return;
+      }
+
+      // Check MFA status after successful login
       const statusResponse = await apiClient.get('/authentication/mfa/status/');
       const status = statusResponse.data;
 
