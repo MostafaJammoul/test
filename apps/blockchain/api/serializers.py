@@ -18,6 +18,12 @@ class InvestigationSerializer(serializers.ModelSerializer):
     created_by_display = serializers.CharField(source='created_by.username', read_only=True)
     archived_by_display = serializers.CharField(source='archived_by.username', read_only=True)
     evidence_count = serializers.SerializerMethodField()
+    assigned_investigator_ids = serializers.PrimaryKeyRelatedField(
+        source='assigned_investigators', many=True, read_only=True
+    )
+    assigned_auditor_ids = serializers.PrimaryKeyRelatedField(
+        source='assigned_auditors', many=True, read_only=True
+    )
 
     class Meta:
         model = Investigation
@@ -25,13 +31,14 @@ class InvestigationSerializer(serializers.ModelSerializer):
             'id', 'case_number', 'title', 'description', 'status',
             'created_by', 'created_by_display', 'created_at',
             'archived_by', 'archived_by_display', 'archived_at',
-            'reopened_by', 'reopened_at', 'evidence_count'
+            'reopened_by', 'reopened_at', 'evidence_count',
+            'assigned_investigator_ids', 'assigned_auditor_ids'
         ]
         read_only_fields = ['id', 'created_by', 'created_at', 'archived_by',
                            'archived_at', 'reopened_by', 'reopened_at']
 
     def get_evidence_count(self, obj):
-        return obj.evidence_set.count()
+        return obj.evidence.count()
 
 
 class EvidenceSerializer(serializers.ModelSerializer):

@@ -49,11 +49,40 @@ class UserProfileApi(generics.RetrieveUpdateAPIView):
     permission_classes = (IsValidUserOrConnectionToken,)
     serializer_class = serializers.UserProfileSerializer
 
+    def check_permissions(self, request):
+        """
+        Override to allow access during MFA setup flow via session
+        """
+        # If user is authenticated, use normal permission check
+        if request.user.is_authenticated:
+            return super().check_permissions(request)
+
+        # During MFA setup, allow access if username is in session
+        if 'auth_username' in request.session:
+            return  # Allow access
+
+        # Otherwise, use normal permission check (will fail if not authenticated)
+        return super().check_permissions(request)
+
     def get_object(self):
+        # If user is authenticated, return the authenticated user
+        if self.request.user.is_authenticated:
+            return self.request.user
+
+        # During MFA setup flow, get user from session
+        if 'auth_username' in self.request.session:
+            username = self.request.session.get('auth_username')
+            try:
+                return User.objects.get(username=username)
+            except User.DoesNotExist:
+                pass
+
+        # Fallback to connection token
         if self.request.user.is_anonymous:
             user = self.get_connection_token_user()
             if user:
                 return user
+
         return self.request.user
 
     def get_connection_token_user(self):

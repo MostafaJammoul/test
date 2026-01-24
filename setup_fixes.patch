@@ -1,0 +1,177 @@
+--- setup.sh.original	2026-01-21 00:00:00.000000000 +0000
++++ setup.sh.fixed	2026-01-21 00:00:00.000000000 +0000
+@@ -593,13 +593,30 @@
+     log_success "Certificate Authority already exists"
+ else
+     log_info "Creating new Certificate Authority..."
+-    if python manage.py create_ca 2>&1 | tee /tmp/ca_creation.log; then
+-        log_success "Certificate Authority created successfully"
+-    else
++
++    # Create CA and capture output to project directory (not /tmp)
++    python manage.py create_ca > ../data/logs/ca_creation.log 2>&1
++
++    # Check if CA was actually created in database (ignore warnings)
++    CA_CREATED=$(python manage.py shell -c "
++from pki.models import CertificateAuthority
++print(CertificateAuthority.objects.filter(is_active=True).exists())
++" 2>/dev/null)
++
++    if [ "$CA_CREATED" = "True" ]; then
++        log_success "Certificate Authority created successfully"
++        log_info "CA details logged to data/logs/ca_creation.log"
++    elif [ "$CA_CREATED" = "False" ]; then
+         log_error "Failed to create Certificate Authority"
+-        log_info "Check logs: /tmp/ca_creation.log"
++        log_info "Check logs: data/logs/ca_creation.log"
+         log_info "You can create it manually later with: python manage.py create_ca"
+         cd ..
+         exit 1
++    else
++        log_warning "Could not verify CA creation status"
++        log_info "CA may have been created - continuing anyway"
++        log_info "Check logs: data/logs/ca_creation.log"
+     fi
+ fi
+
+@@ -615,18 +632,25 @@
+
+ # Export CA certificate to PEM format for nginx
+ log_info "Exporting CA certificate for nginx..."
+-if python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt --force 2>&1 | tee /tmp/ca_export.log; then
+-    log_success "CA certificate exported successfully"
+-
+-    # Verify file was created
+-    if [ -f "../data/certs/mtls/internal-ca.crt" ]; then
+-        log_success "CA certificate available at data/certs/mtls/internal-ca.crt"
+-        log_info "Note: CRL (Certificate Revocation List) not configured - certificate revocation not yet implemented"
+-    else
+-        log_warning "CA certificate not found at expected location"
+-        log_info "mTLS will not work until CA certificate is properly exported"
+-    fi
++
++# Export and capture output to project directory
++python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt --force > ../data/logs/ca_export.log 2>&1
++
++# Verify file was actually created
++if [ -f "../data/certs/mtls/internal-ca.crt" ]; then
++    log_success "CA certificate exported successfully"
++    log_success "CA certificate available at data/certs/mtls/internal-ca.crt"
++
++    # Show certificate details
++    openssl x509 -in ../data/certs/mtls/internal-ca.crt -noout -subject -dates 2>/dev/null | while read line; do
++        log_info "  $line"
++    done
+ else
+-    log_warning "Failed to export CA certificate"
+-    log_info "Check logs: /tmp/ca_export.log"
++    log_warning "CA certificate file not found after export"
++    log_info "Check logs: data/logs/ca_export.log"
+     log_info "mTLS will not work until CA certificate is exported"
+-    log_info "You can export it manually later with: python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt --force"
++    log_info "You can export it manually later with:"
++    log_info "  cd apps && python manage.py export_ca_cert --output ../data/certs/mtls/internal-ca.crt --force"
+ fi
+
+@@ -652,13 +676,26 @@
+ # Generate self-signed SSL certificate for server (testing)
+ if [ ! -f "data/certs/mtls/server.crt" ]; then
+     log_info "Generating self-signed SSL certificate for server..."
+-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
++
++    if openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+         -keyout data/certs/mtls/server.key \
+         -out data/certs/mtls/server.crt \
+         -subj "/C=US/ST=California/L=San Francisco/O=JumpServer/OU=BlockchainCoC/CN=localhost" \
+-        2>/dev/null
+-
+-    chmod 600 data/certs/mtls/server.key
+-    chmod 644 data/certs/mtls/server.crt
+-    log_success "Server SSL certificate generated"
++        2>&1; then
++
++        # Set proper permissions
++        chmod 600 data/certs/mtls/server.key
++        chmod 644 data/certs/mtls/server.crt
++
++        log_success "Server SSL certificate generated"
++        log_info "  Certificate: data/certs/mtls/server.crt"
++        log_info "  Private key: data/certs/mtls/server.key"
++    else
++        log_error "Failed to generate server SSL certificate"
++        log_info "OpenSSL may not be installed. Install with: sudo apt install -y openssl"
++        log_warning "mTLS/HTTPS will not work without server certificate"
++    fi
++else
++    log_success "Server SSL certificate already exists"
+ fi
+
+@@ -922,20 +959,38 @@
+ # Create superuser automatically using environment variables
+-DJANGO_SUPERUSER_USERNAME="$SUPERUSER_NAME" \
+-DJANGO_SUPERUSER_EMAIL="$SUPERUSER_EMAIL" \
+-DJANGO_SUPERUSER_PASSWORD="$SUPERUSER_PASSWORD" \
+-python manage.py createsuperuser --noinput 2>/dev/null || {
+-    log_warning "Superuser may already exist or creation failed"
+-    log_info "You can create it manually with: cd /opt/truefypjs/apps && python manage.py createsuperuser"
+-}
++log_info "Creating or updating admin user..."
++
++# Use Python to create or update user with proper password hashing
++python manage.py shell <<PYTHON_SUPERUSER
++from django.contrib.auth import get_user_model
++from django.contrib.auth.hashers import make_password
++
++User = get_user_model()
++
++# Get or create admin user
++admin, created = User.objects.get_or_create(
++    username='$SUPERUSER_NAME',
++    defaults={
++        'email': '$SUPERUSER_EMAIL',
++        'is_staff': True,
++        'is_superuser': True,
++        'is_active': True
++    }
++)
++
++# Always set password to ensure it's correct
++admin.set_password('$SUPERUSER_PASSWORD')
++admin.is_staff = True
++admin.is_superuser = True
++admin.is_active = True
++admin.email = '$SUPERUSER_EMAIL'
++admin.save()
++
++print(f"Admin user {'created' if created else 'updated'}: {admin.username}")
++print(f"  Email: {admin.email}")
++print(f"  Is superuser: {admin.is_superuser}")
++print(f"  Is active: {admin.is_active}")
++PYTHON_SUPERUSER
+
+ # Verify superuser was created and fix is_superuser/is_staff flags
+-if python manage.py shell -c "from users.models import User; print(User.objects.filter(username='$SUPERUSER_NAME').exists())" 2>/dev/null | grep -q "True"; then
++if python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); u = User.objects.filter(username='$SUPERUSER_NAME').first(); print(u and u.check_password('$SUPERUSER_PASSWORD'))" 2>/dev/null | grep -q "True"; then
+     log_success "Superuser '$SUPERUSER_NAME' exists"
+-
+-    # Explicitly set is_superuser and is_staff flags (in case migration was missing them)
+-    log_info "Ensuring superuser flags are set correctly..."
+-    python manage.py shell -c "
+-from users.models import User
+-user = User.objects.get(username='$SUPERUSER_NAME')
+-user.is_superuser = True
+-user.is_staff = True
+-user.role = 'Admin'
+-user.is_active = True
+-user.save()
+-print(f'Updated {user.username}: is_superuser={user.is_superuser}, is_staff={user.is_staff}, role={user.role}')
+-" 2>/dev/null || log_warning "Could not update superuser flags"
+-
+-    log_success "Superuser '$SUPERUSER_NAME' configured correctly"
++    log_success "Superuser password verified: admin/admin works correctly"
+ else
+-    log_error "Superuser creation verification failed"
++    log_error "Superuser password verification failed"
++    log_warning "Login with admin/admin may not work"
+ fi
+

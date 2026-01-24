@@ -4,7 +4,7 @@ import Badge from '../common/Badge';
 import { ROLE_NAMES, ROLE_COLORS } from '../../utils/constants';
 
 export default function Navbar() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
 
   const primaryRole = user?.system_roles?.[0];
   const roleName = primaryRole ? ROLE_NAMES[primaryRole.id] : 'Unknown';
@@ -65,6 +65,28 @@ export default function Navbar() {
               <div className="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-semibold">
                 {user?.username?.[0]?.toUpperCase()}
               </div>
+
+              {/* Logout Button */}
+              <button
+                onClick={logout}
+                className="ml-2 text-gray-500 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center"
+                title="Logout"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+                <span className="ml-1">Logout</span>
+              </button>
             </div>
           </div>
         </div>

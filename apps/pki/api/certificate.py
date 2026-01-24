@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse
 from pki.models import Certificate
+from pki.api.serializers import CertificateSerializer
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 from cryptography import x509
@@ -21,12 +22,13 @@ from OpenSSL import crypto
 class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for certificate management
-    
+
     list: Get all certificates
     retrieve: Get single certificate
     download: Download certificate as .p12 file
     """
     queryset = Certificate.objects.all()
+    serializer_class = CertificateSerializer
     permission_classes = [IsAuthenticated]
 
     @action(detail=True, methods=['get'])

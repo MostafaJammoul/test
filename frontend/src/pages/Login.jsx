@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import Button from '../components/common/Button';
@@ -10,6 +10,14 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Fetch CSRF token on component mount
+  useEffect(() => {
+    // Make a GET request to ensure Django sets the CSRF cookie
+    apiClient.get('/authentication/mfa/status/').catch(() => {
+      // Ignore errors - we just want the CSRF cookie to be set
+    });
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -17,12 +25,19 @@ export default function Login() {
 
     try {
       // Login with username/password
-      await apiClient.post('/authentication/tokens/', {
+      const loginResponse = await apiClient.post('/authentication/tokens/', {
         username,
         password,
       });
 
-      // Check MFA status after login
+      // Check if response indicates MFA needs to be set up (200 OK with error field)
+      if (loginResponse.data?.error === 'mfa_unset') {
+        // MFA not configured - redirect to setup
+        navigate('/setup-mfa');
+        return;
+      }
+
+      // Check MFA status after successful login
       const statusResponse = await apiClient.get('/authentication/mfa/status/');
       const status = statusResponse.data;
 
@@ -63,10 +78,10 @@ export default function Login() {
             </svg>
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            JumpServer Blockchain
+            Administrator Login
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Chain of Custody System
+            Password access is restricted to System Administrators. All other users must log in with their mTLS certificate.
           </p>
         </div>
 

@@ -31,6 +31,9 @@ class Investigation(JMSOrgBaseModel):
     archived_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Archived At"))
     reopened_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Reopened At"))
     reopen_reason = models.TextField(null=True, blank=True, verbose_name=_("Reopen Reason"))
+    # Role-based assignments for access control
+    assigned_investigators = models.ManyToManyField(User, blank=True, related_name='assigned_investigations_as_investigator', verbose_name=_("Assigned Investigators"))
+    assigned_auditors = models.ManyToManyField(User, blank=True, related_name='assigned_investigations_as_auditor', verbose_name=_("Assigned Auditors"))
 
     class Meta:
         db_table = 'blockchain_investigation'

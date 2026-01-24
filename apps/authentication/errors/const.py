@@ -13,6 +13,7 @@ reason_user_expired = 'user_expired'
 reason_backend_not_match = 'backend_not_match'
 reason_acl_not_allow = 'acl_not_allow'
 only_local_users_are_allowed = 'only_local_users_are_allowed'
+reason_password_restricted = 'password_restricted'
 
 reason_choices = {
     reason_password_failed: _('Username/password check failed'),
@@ -26,7 +27,8 @@ reason_choices = {
     reason_user_expired: _("This account is expired"),
     reason_backend_not_match: _("Auth backend not match"),
     reason_acl_not_allow: _("ACL is not allowed"),
-    only_local_users_are_allowed: _("Only local users are allowed")
+    only_local_users_are_allowed: _("Only local users are allowed"),
+    reason_password_restricted: _("Password login is restricted to administrators. Use certificate authentication."),
 }
 old_reason_choices = {
     '0': '-',

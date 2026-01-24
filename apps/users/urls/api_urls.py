@@ -19,11 +19,14 @@ router.register(r'service-account-registrations', api.ServiceAccountRegistration
 router.register(r'connection-token', auth_api.ConnectionTokenViewSet, 'connection-token')
 
 urlpatterns = [
+    # Current user profile endpoints
     path('profile/', api.UserProfileApi.as_view(), name='user-profile'),
+    path('me/', api.UserProfileApi.as_view(), name='user-me'),  # Alias for frontend compatibility
     path('profile/password/', api.UserPasswordApi.as_view(), name='user-password'),
     path('profile/mfa/reset/', api.UserResetMFAApi.as_view(), name='my-mfa-reset'),
     path('profile/permissions/', api.UserPermissionsApi.as_view(), name='user-permissions'),
     path('preference/', api.PreferenceApi.as_view(), name='preference'),
+    # Other user management endpoints
     path('users/<uuid:pk>/mfa/reset/', api.UserResetMFAApi.as_view(), name='user-reset-mfa'),
     path('users/<uuid:pk>/password/', api.UserChangePasswordApi.as_view(), name='change-user-password'),
     path('users/<uuid:pk>/password/reset/', api.UserResetPasswordApi.as_view(), name='user-reset-password'),

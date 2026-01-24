@@ -31,7 +31,10 @@ export const AuthProvider = ({ children }) => {
         // Certificate auth requires MFA
         if (status.needs_setup) {
           setLoading(false);
-          if (window.location.pathname !== '/setup-mfa' && window.location.pathname !== '/login') {
+          if (
+            window.location.pathname !== '/setup-mfa' &&
+            !window.location.pathname.startsWith('/admin')
+          ) {
             window.location.href = '/setup-mfa';
           }
           return;
@@ -39,7 +42,10 @@ export const AuthProvider = ({ children }) => {
 
         if (!status.mfa_verified) {
           setLoading(false);
-          if (window.location.pathname !== '/mfa-challenge' && window.location.pathname !== '/login') {
+          if (
+            window.location.pathname !== '/mfa-challenge' &&
+            !window.location.pathname.startsWith('/admin')
+          ) {
             window.location.href = '/mfa-challenge';
           }
           return;
@@ -53,10 +59,17 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setMfaStatus(null);
 
-        // Don't redirect if already on login page, MFA pages, or public pages
-        const publicPages = ['/login', '/setup-mfa', '/mfa-challenge'];
-        if (!publicPages.includes(window.location.pathname)) {
-          window.location.href = '/login';
+        // Don't redirect if already on allowed pages
+        const publicPages = ['/admin', '/setup-mfa', '/mfa-challenge'];
+        const adminOnlyRoutes = ['/admin', '/admin-dashboard'];
+        const currentPath = window.location.pathname;
+        const isAdminArea = adminOnlyRoutes.some((path) =>
+          currentPath.startsWith(path)
+        );
+        if (isAdminArea && currentPath !== '/admin') {
+          window.location.href = '/admin';
+        } else if (publicPages.includes(currentPath)) {
+          // stay on the current page
         }
       } finally {
         setLoading(false);
@@ -69,11 +82,17 @@ export const AuthProvider = ({ children }) => {
   // Verify MFA TOTP code
   const verifyMFA = async (code) => {
     try {
-      await apiClient.post('/authentication/mfa/verify-totp/', { code });
+      // Verify MFA code - backend returns token + user data
+      const response = await apiClient.post('/authentication/mfa/verify-totp/', { code });
 
-      // Fetch user data after successful verification
-      const response = await apiClient.get('/users/me/');
-      setUser(response.data);
+      // Extract and store the authentication token
+      const { token, user: userData } = response.data;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+      }
+
+      // Set user data from response (no need to fetch again)
+      setUser(userData);
       setMfaStatus({ ...mfaStatus, mfa_verified: true });
 
       return { success: true };
@@ -108,14 +127,27 @@ export const AuthProvider = ({ children }) => {
 
   // Logout function
   const logout = async () => {
+    const wasAdmin = isAdmin();
     try {
       await apiClient.post('/authentication/logout/');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear authentication token
+      localStorage.removeItem('auth_token');
+
+      // Clear all cookies (force Django session to be removed)
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
       setUser(null);
       setMfaStatus(null);
-      window.location.href = '/login';
+
+      // Force full page reload to clear all state
+      window.location.href = wasAdmin ? '/admin' : '/';
     }
   };
 

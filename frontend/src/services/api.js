@@ -7,6 +7,23 @@ import axios from 'axios';
 // Base API URL (proxied through Vite dev server or nginx in production)
 const API_BASE_URL = '/api/v1';
 
+// Helper function to get CSRF token from cookies
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      // Does this cookie string begin with the name we want?
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
 // Create axios instance with default config
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -14,13 +31,28 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true, // Include cookies for session authentication
+  xsrfCookieName: 'jms_csrftoken',  // Django CSRF cookie name
+  xsrfHeaderName: 'X-CSRFToken',     // Django CSRF header name
 });
 
-// Request interceptor (add auth token if needed)
+// Request interceptor (add auth token and CSRF token if available)
 apiClient.interceptors.request.use(
   (config) => {
-    // Session-based auth with mTLS, no need for Bearer token
-    // Cookies automatically sent with withCredentials: true
+    // Check for Bearer token in localStorage (set after MFA verification)
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Add CSRF token for non-safe methods (POST, PUT, DELETE, PATCH)
+    if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
+      const csrfToken = getCookie('jms_csrftoken');
+      if (csrfToken) {
+        config.headers['X-CSRFToken'] = csrfToken;
+      }
+    }
+
+    // Cookies also sent automatically with withCredentials: true
     return config;
   },
   (error) => Promise.reject(error)

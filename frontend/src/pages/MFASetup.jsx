@@ -36,9 +36,17 @@ export default function MFASetup() {
     setVerifying(true);
 
     try {
-      await apiClient.post('/authentication/mfa/setup/', { code });
-      // MFA setup successful, redirect to MFA challenge to verify immediately
-      navigate('/mfa-challenge');
+      // Setup MFA - backend returns token + user data after successful verification
+      const response = await apiClient.post('/authentication/mfa/setup/', { code });
+
+      // Extract and store the authentication token
+      const { token } = response.data;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+      }
+
+      // MFA setup successful, redirect to dashboard (already verified!)
+      navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid code. Please try again.');
       setVerifying(false);

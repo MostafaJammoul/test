@@ -64,9 +64,11 @@ class BlockchainRoleRequiredMixin:
         # Check if user has an allowed blockchain role
         from rbac.models import SystemRoleBinding
 
-        user_role_ids = SystemRoleBinding.objects.filter(
-            user=user
-        ).values_list('role_id', flat=True)
+        # Convert UUID objects to strings for comparison
+        user_role_ids = [
+            str(role_id) for role_id in
+            SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
+        ]
 
         has_blockchain_role = any(
             role_id in ALLOWED_BLOCKCHAIN_ROLE_IDS
@@ -76,7 +78,7 @@ class BlockchainRoleRequiredMixin:
         if not has_blockchain_role:
             logger.warning(
                 f"User {user.username} attempted to access blockchain API "
-                f"without authorized role. Roles: {list(user_role_ids)}"
+                f"without authorized role. Roles: {user_role_ids}"
             )
             # Return empty queryset - user not authorized
             return queryset.none()
@@ -156,19 +158,45 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
 
     def get_queryset(self):
         """
-        Filter investigations based on user role
-        - Investigators see only their own
-        - Auditors and Court see all
+        Filter investigations based on user role and assignments
+        - System Admin: See all investigations
+        - Court: See all investigations (read-only)
+        - Investigator: See only assigned investigations (full read/write)
+        - Auditor: See only assigned investigations (read-only + notes)
         """
+        from rbac.models import SystemRoleBinding
+
         queryset = super().get_queryset()
         user = self.request.user
 
-        # Auditors and Court can see all investigations
-        if user.has_perm('blockchain.view_all_investigations'):
+        # Get user's roles
+        user_role_ids = list(SystemRoleBinding.objects.filter(
+            user=user
+        ).values_list('role_id', flat=True))
+
+        # System Admin role ID
+        SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
+        # Court role ID
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000A'
+        # Investigator role ID
+        INVESTIGATOR_ROLE = '00000000-0000-0000-0000-000000000008'
+        # Auditor role ID
+        AUDITOR_ROLE = '00000000-0000-0000-0000-000000000009'
+
+        # System Admin and Court can see all investigations
+        if SYSTEM_ADMIN_ROLE in user_role_ids or COURT_ROLE in user_role_ids:
             return queryset
 
-        # Investigators see only their own
-        return queryset.filter(created_by=user)
+        # Investigator sees only assigned investigations
+        if INVESTIGATOR_ROLE in user_role_ids:
+            return queryset.filter(assigned_investigators=user)
+
+        # Auditor sees only assigned investigations
+        if AUDITOR_ROLE in user_role_ids:
+            return queryset.filter(assigned_auditors=user)
+
+        # If no blockchain role, return empty queryset
+        return queryset.none()
 
     def perform_create(self, serializer):
         """
@@ -326,17 +354,42 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
 
     def get_queryset(self):
         """
-        Filter evidence based on user role
+        Filter evidence based on user role and investigation assignments
+        - System Admin: See all evidence
+        - Court: See all evidence
+        - Investigator: See evidence from assigned investigations only
+        - Auditor: See evidence from assigned investigations only
         """
+        from rbac.models import SystemRoleBinding
+
         queryset = super().get_queryset()
         user = self.request.user
 
-        # Auditors and Court can see all evidence
-        if user.has_perm('blockchain.view_all_evidence'):
+        # Get user's roles
+        user_role_ids = list(SystemRoleBinding.objects.filter(
+            user=user
+        ).values_list('role_id', flat=True))
+
+        # Role IDs
+        SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000A'
+        INVESTIGATOR_ROLE = '00000000-0000-0000-0000-000000000008'
+        AUDITOR_ROLE = '00000000-0000-0000-0000-000000000009'
+
+        # System Admin and Court can see all evidence
+        if SYSTEM_ADMIN_ROLE in user_role_ids or COURT_ROLE in user_role_ids:
             return queryset
 
-        # Investigators see only their own
-        return queryset.filter(uploaded_by=user)
+        # Investigator sees evidence from assigned investigations
+        if INVESTIGATOR_ROLE in user_role_ids:
+            return queryset.filter(investigation__assigned_investigators=user)
+
+        # Auditor sees evidence from assigned investigations
+        if AUDITOR_ROLE in user_role_ids:
+            return queryset.filter(investigation__assigned_auditors=user)
+
+        # If no blockchain role, return empty queryset
+        return queryset.none()
 
     def create(self, request, *args, **kwargs):
         """
@@ -741,8 +794,9 @@ class TagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         Admin creates categorization tags (crime type, priority, status)
         with color coding for UI display. Max 3 tags per investigation.
     """
-    queryset = Tag.objects.all()
+    model = Tag
     serializer_class = TagSerializer
+    perm_model = Tag
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'category', 'description']
@@ -777,7 +831,7 @@ class InvestigationTagViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         BlockchainCourt assigns up to 3 tags from library to each investigation
         for filtering and organization in the UI dashboard.
     """
-    queryset = InvestigationTag.objects.all()
+    model = InvestigationTag
     serializer_class = InvestigationTagSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -820,7 +874,7 @@ class InvestigationNoteViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet)
         Investigators add timestamped notes to investigations. Notes are
         immutably recorded on blockchain for chain of custody audit trail.
     """
-    queryset = InvestigationNote.objects.all()
+    model = InvestigationNote
     serializer_class = InvestigationNoteSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -869,7 +923,7 @@ class InvestigationActivityViewSet(BlockchainRoleRequiredMixin, viewsets.ReadOnl
         note added, tag changed, status changed). Users can mark activities
         as viewed to track what's new.
     """
-    queryset = InvestigationActivity.objects.all()
+    model = InvestigationActivity
     serializer_class = InvestigationActivitySerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]

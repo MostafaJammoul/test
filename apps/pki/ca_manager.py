@@ -252,6 +252,52 @@ class CAManager:
             return False, str(e)
 
     @staticmethod
+    def export_pkcs12(certificate_pem, private_key_pem, ca_cert_pem, password=b''):
+        """
+        Export certificate and private key as PKCS#12 (.p12) format
+
+        Args:
+            certificate_pem: User certificate in PEM format
+            private_key_pem: User private key in PEM format
+            ca_cert_pem: CA certificate in PEM format
+            password: Password to encrypt .p12 file (bytes)
+
+        Returns:
+            PKCS#12 data (bytes)
+        """
+        from cryptography.hazmat.primitives.serialization import pkcs12
+
+        # Load certificate
+        cert = x509.load_pem_x509_certificate(
+            certificate_pem.encode('utf-8'),
+            default_backend()
+        )
+
+        # Load private key
+        private_key = serialization.load_pem_private_key(
+            private_key_pem.encode('utf-8'),
+            password=None,
+            backend=default_backend()
+        )
+
+        # Load CA certificate
+        ca_cert = x509.load_pem_x509_certificate(
+            ca_cert_pem.encode('utf-8'),
+            default_backend()
+        )
+
+        # Create PKCS#12
+        p12_data = pkcs12.serialize_key_and_certificates(
+            name=b"User Certificate",
+            key=private_key,
+            cert=cert,
+            cas=[ca_cert],
+            encryption_algorithm=serialization.BestAvailableEncryption(password) if password else serialization.NoEncryption()
+        )
+
+        return p12_data
+
+    @staticmethod
     def generate_crl(ca):
         """
         Generate Certificate Revocation List
