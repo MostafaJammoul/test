@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import Button from '../components/common/Button';
@@ -9,6 +9,14 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Fetch CSRF token on component mount
+  useEffect(() => {
+    // Make a GET request to ensure Django sets the CSRF cookie
+    apiClient.get('/authentication/mfa/status/').catch(() => {
+      // Ignore errors - we just want the CSRF cookie to be set
+    });
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
