@@ -1,0 +1,110 @@
+version: '3.8'
+
+networks:
+  hot_network:
+    external: true
+    name: hot_network
+  cold_network:
+    external: true
+    name: cold_network
+
+volumes:
+  pgdata-hot:
+  pgdata-cold:
+  walletstore-hot:
+  walletstore-cold:
+
+services:
+  # ============== HOT CHAIN EXPLORER ==============
+  explorerdb-hot:
+    image: ghcr.io/hyperledger-labs/explorer-db:latest
+    container_name: explorerdb-hot
+    hostname: explorerdb-hot
+    environment:
+      - DATABASE_DATABASE=fabricexplorer
+      - DATABASE_USERNAME=hppoc
+      - DATABASE_PASSWORD=password
+    healthcheck:
+      test: "pg_isready -h localhost -p 5432 -q -U postgres"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - pgdata-hot:/var/lib/postgresql/data
+    networks:
+      - hot_network
+
+  explorer-hot:
+    image: ghcr.io/hyperledger-labs/explorer:latest
+    container_name: explorer-hot
+    hostname: explorer-hot
+    environment:
+      - DATABASE_HOST=explorerdb-hot
+      - DATABASE_DATABASE=fabricexplorer
+      - DATABASE_USERNAME=hppoc
+      - DATABASE_PASSWD=password
+      - LOG_LEVEL_APP=info
+      - LOG_LEVEL_DB=info
+      - LOG_LEVEL_CONSOLE=debug
+      - LOG_CONSOLE_STDOUT=true
+      - DISCOVERY_AS_LOCALHOST=false
+      - PORT=8080
+    volumes:
+      - ./hot-explorer/config.json:/opt/explorer/app/platform/fabric/config.json
+      - ./hot-explorer/connection-profile-hot.json:/opt/explorer/app/platform/fabric/connection-profile-hot.json
+      - /home/kali/FYP-2/blockchain/hot-chain/crypto-config:/tmp/crypto
+      - walletstore-hot:/opt/explorer/wallet
+    ports:
+      - "8081:8080"
+    depends_on:
+      explorerdb-hot:
+        condition: service_healthy
+    networks:
+      - hot_network
+
+  # ============== COLD CHAIN EXPLORER ==============
+  explorerdb-cold:
+    image: ghcr.io/hyperledger-labs/explorer-db:latest
+    container_name: explorerdb-cold
+    hostname: explorerdb-cold
+    environment:
+      - DATABASE_DATABASE=fabricexplorer
+      - DATABASE_USERNAME=hppoc
+      - DATABASE_PASSWORD=password
+    healthcheck:
+      test: "pg_isready -h localhost -p 5432 -q -U postgres"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - pgdata-cold:/var/lib/postgresql/data
+    networks:
+      - cold_network
+
+  explorer-cold:
+    image: ghcr.io/hyperledger-labs/explorer:latest
+    container_name: explorer-cold
+    hostname: explorer-cold
+    environment:
+      - DATABASE_HOST=explorerdb-cold
+      - DATABASE_DATABASE=fabricexplorer
+      - DATABASE_USERNAME=hppoc
+      - DATABASE_PASSWD=password
+      - LOG_LEVEL_APP=info
+      - LOG_LEVEL_DB=info
+      - LOG_LEVEL_CONSOLE=debug
+      - LOG_CONSOLE_STDOUT=true
+      - DISCOVERY_AS_LOCALHOST=false
+      - PORT=8080
+    volumes:
+      - ./cold-explorer/config.json:/opt/explorer/app/platform/fabric/config.json
+      - ./cold-explorer/connection-profile-cold.json:/opt/explorer/app/platform/fabric/connection-profile-cold.json
+      - /home/kali/FYP-2/blockchain/cold-chain/crypto-config:/tmp/crypto
+      - walletstore-cold:/opt/explorer/wallet
+    ports:
+      - "8082:8080"
+    depends_on:
+      explorerdb-cold:
+        condition: service_healthy
+    networks:
+      - cold_network

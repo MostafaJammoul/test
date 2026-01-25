@@ -1,0 +1,59 @@
+# Crypto configuration for Hot Chain (Active Investigations)
+# Defines the PKI structure for ForensicLabMSP, CourtMSP, and OrdererOrg
+
+OrdererOrgs:
+  - Name: OrdererOrg
+    Domain: orderer.hot.dfir.local
+    EnableNodeOUs: true
+
+    Specs:
+      - Hostname: orderer0
+      - Hostname: orderer1
+      - Hostname: orderer2
+
+    # TLS Configuration
+    CA:
+      Hostname: ca-orderer
+
+PeerOrgs:
+  # Forensic Lab Organization
+  - Name: ForensicLabMSP
+    Domain: lab.hot.dfir.local
+    EnableNodeOUs: true
+
+    # Lab peers
+    Template:
+      Count: 2
+      Start: 0
+      Hostname: peer
+      SANS:
+        - localhost
+        - 127.0.0.1
+
+    # Lab users (Investigators, LabAnalysts, Admins)
+    Users:
+      Count: 5
+
+    CA:
+      Hostname: ca-lab
+
+  # Court Organization
+  - Name: CourtMSP
+    Domain: court.hot.dfir.local
+    EnableNodeOUs: true
+
+    # Court peers
+    Template:
+      Count: 2
+      Start: 0
+      Hostname: peer
+      SANS:
+        - localhost
+        - 127.0.0.1
+
+    # Court users (CourtUsers, Auditors)
+    Users:
+      Count: 3
+
+    CA:
+      Hostname: ca-court

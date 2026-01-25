@@ -1,0 +1,32 @@
+version: '3.8'
+
+networks:
+  hot_network:
+    external: true
+    name: hot_network
+  cold_network:
+    external: true
+    name: cold_network
+
+services:
+  coc-chaincode-hot:
+    container_name: coc-chaincode-hot
+    image: coc-chaincode:1.0
+    environment:
+      - CHAINCODE_ID=coc_1.0:8705722e04f37b6d98dff5e82839b6c6be404ea857658fcf112d0a4a043366a6
+      - CHAINCODE_SERVER_ADDRESS=0.0.0.0:9999
+    ports:
+      - "9999:9999"
+    networks:
+      - hot_network
+
+  coc-chaincode-cold:
+    container_name: coc-chaincode-cold
+    image: coc-chaincode:1.0
+    environment:
+      - CHAINCODE_ID=coc_1.0:32efd704b60129c3624e3f5f44b6fb50b32507ad434799843608f8eb15805ffe
+      - CHAINCODE_SERVER_ADDRESS=0.0.0.0:9999
+    ports:
+      - "9998:9999"
+    networks:
+      - cold_network

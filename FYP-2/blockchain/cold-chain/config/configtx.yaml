@@ -1,0 +1,176 @@
+# Configuration for Cold Chain
+# Channel: coldchannel
+# Consensus: RAFT with 3 orderers
+
+Organizations:
+  - &OrdererOrg
+    Name: OrdererOrg
+    ID: OrdererMSP
+    MSPDir: ../crypto-config/ordererOrganizations/cold.coc.com/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('OrdererMSP.member')"
+      Writers:
+        Type: Signature
+        Rule: "OR('OrdererMSP.member')"
+      Admins:
+        Type: Signature
+        Rule: "OR('OrdererMSP.admin')"
+    OrdererEndpoints:
+      - orderer.cold.coc.com:8050
+      - orderer2.cold.coc.com:8052
+      - orderer3.cold.coc.com:8054
+
+  - &ForensicLab
+    Name: ForensicLabMSP
+    ID: ForensicLabMSP
+    MSPDir: ../crypto-config/peerOrganizations/forensiclab.cold.coc.com/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('ForensicLabMSP.admin', 'ForensicLabMSP.peer', 'ForensicLabMSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('ForensicLabMSP.admin', 'ForensicLabMSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('ForensicLabMSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('ForensicLabMSP.peer')"
+    AnchorPeers:
+      - Host: peer0.forensiclab.cold.coc.com
+        Port: 10051
+
+  - &Court
+    Name: CourtMSP
+    ID: CourtMSP
+    MSPDir: ../crypto-config/peerOrganizations/court.cold.coc.com/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('CourtMSP.admin', 'CourtMSP.peer', 'CourtMSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('CourtMSP.admin', 'CourtMSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('CourtMSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('CourtMSP.peer')"
+    AnchorPeers:
+      - Host: peer0.court.cold.coc.com
+        Port: 9051
+
+Capabilities:
+  Channel: &ChannelCapabilities
+    V2_0: true
+  Orderer: &OrdererCapabilities
+    V2_0: true
+  Application: &ApplicationCapabilities
+    V2_5: true
+
+Application: &ApplicationDefaults
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    LifecycleEndorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+    Endorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+  Capabilities:
+    <<: *ApplicationCapabilities
+
+Orderer: &OrdererDefaults
+  OrdererType: etcdraft
+  Addresses:
+    - orderer.cold.coc.com:8050
+    - orderer2.cold.coc.com:8052
+    - orderer3.cold.coc.com:8054
+  EtcdRaft:
+    Consenters:
+      - Host: orderer.cold.coc.com
+        Port: 8050
+        ClientTLSCert: ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer.cold.coc.com/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer.cold.coc.com/tls/server.crt
+      - Host: orderer2.cold.coc.com
+        Port: 8052
+        ClientTLSCert: ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer2.cold.coc.com/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer2.cold.coc.com/tls/server.crt
+      - Host: orderer3.cold.coc.com
+        Port: 8054
+        ClientTLSCert: ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer3.cold.coc.com/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer3.cold.coc.com/tls/server.crt
+  BatchTimeout: 2s
+  BatchSize:
+    MaxMessageCount: 10
+    AbsoluteMaxBytes: 99 MB
+    PreferredMaxBytes: 512 KB
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    BlockValidation:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+
+Channel: &ChannelDefaults
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+  Capabilities:
+    <<: *ChannelCapabilities
+
+Profiles:
+  ColdOrdererGenesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Organizations:
+        - *OrdererOrg
+      Capabilities:
+        <<: *OrdererCapabilities
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *ForensicLab
+        - *Court
+      Capabilities:
+        <<: *ApplicationCapabilities
+
+  ColdChannel:
+    Consortium: ColdConsortium
+    <<: *ChannelDefaults
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *ForensicLab
+        - *Court
+      Capabilities:
+        <<: *ApplicationCapabilities

@@ -1,0 +1,44 @@
+# Crypto configuration for Cold Chain
+# Domain: *.cold.coc.com
+# This configuration defines the organizational structure for the cold blockchain
+
+OrdererOrgs:
+  - Name: OrdererOrg
+    Domain: cold.coc.com
+    EnableNodeOUs: true
+    Specs:
+      - Hostname: orderer
+        SANS:
+          - localhost
+          - 127.0.0.1
+      - Hostname: orderer2
+        SANS:
+          - localhost
+          - 127.0.0.1
+      - Hostname: orderer3
+        SANS:
+          - localhost
+          - 127.0.0.1
+
+PeerOrgs:
+  - Name: ForensicLab
+    Domain: forensiclab.cold.coc.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+      SANS:
+        - localhost
+        - 127.0.0.1
+    Users:
+      Count: 2
+
+  - Name: Court
+    Domain: court.cold.coc.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+      SANS:
+        - localhost
+        - 127.0.0.1
+    Users:
+      Count: 2

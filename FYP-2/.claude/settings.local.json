@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker ps:*)",
+      "Bash(chmod:*)",
+      "Bash(python3:*)",
+      "Bash(pkill:*)",
+      "Bash(curl:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker exec:*)",
+      "Bash(echo '   NOT RUNNING' __NEW_LINE_25d60b5c51d8f571__ echo echo '4. Docker Containers:' docker ps --format {{.Names}})",
+      "Bash(openssl x509:*)",
+      "Bash(openssl s_client:*)",
+      "Bash(docker logs:*)",
+      "Bash(for i in 0 1 2 3 4 5)",
+      "Bash(do echo '=== Block $i ===' docker exec cli.hot peer channel fetch $i -c hotchannel /tmp/block$i.pb 2)",
+      "Bash(/dev/null docker exec cli.hot configtxlator proto_decode --type common.Block --input /tmp/block$i.pb)",
+      "Bash(docker inspect:*)"
+    ]
+  }
+}

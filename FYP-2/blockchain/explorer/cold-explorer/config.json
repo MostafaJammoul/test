@@ -1,0 +1,9 @@
+{
+    "network-configs": {
+        "cold-chain-network": {
+            "name": "Cold Chain Network",
+            "profile": "./connection-profile-cold.json"
+        }
+    },
+    "license": "Apache-2.0"
+}

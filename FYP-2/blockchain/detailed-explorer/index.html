@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DFIR Chain-of-Custody - Detailed Blockchain Explorer</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1f2937;
+            --bg-block: #374151;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --accent-hot: #ef4444;
+            --accent-cold: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --border-color: #374151;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-subtitle { color: var(--text-muted); font-size: 0.875rem; }
+
+        .header-status { display: flex; gap: 20px; align-items: center; }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .status-dot.online { background: var(--accent-green); }
+        .status-dot.offline { background: var(--accent-hot); }
+
+        /* Navigation */
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 15px 30px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .nav-tab {
+            padding: 10px 24px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .nav-tab:hover { background: var(--bg-card); color: var(--text-primary); }
+        .nav-tab.active { background: var(--accent-cyan); color: var(--bg-primary); font-weight: 600; }
+
+        .main-content { padding: 30px; }
+
+        /* Chain Cards */
+        .chains-overview {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chain-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        .chain-card.hot { border-top: 4px solid var(--accent-hot); }
+        .chain-card.cold { border-top: 4px solid var(--accent-cold); }
+
+        .chain-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chain-title { display: flex; align-items: center; gap: 10px; }
+
+        .chain-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .chain-icon.hot { background: rgba(239, 68, 68, 0.2); }
+        .chain-icon.cold { background: rgba(59, 130, 246, 0.2); }
+
+        .chain-name { font-size: 1.25rem; font-weight: 600; }
+        .chain-name.hot { color: var(--accent-hot); }
+        .chain-name.cold { color: var(--accent-cold); }
+
+        .chain-channel { color: var(--text-muted); font-size: 0.8rem; font-family: monospace; }
+
+        .chain-status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .chain-status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .chain-status-badge.offline { background: rgba(239, 68, 68, 0.2); color: var(--accent-hot); }
+
+        .chain-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent-cyan); }
+        .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Hash Display */
+        .hash-info {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .hash-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .hash-row:last-child { border-bottom: none; }
+
+        .hash-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+
+        .hash-value {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.7rem;
+            color: var(--accent-cyan);
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Block Visualization */
+        .blocks-visual {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .blocks-chain {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            min-width: max-content;
+            padding: 10px 0;
+        }
+
+        .block-mini {
+            min-width: 70px;
+            padding: 10px 8px;
+            background: var(--bg-block);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+            font-size: 0.75rem;
+        }
+
+        .block-mini:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+        .block-mini.hot:hover { border-color: var(--accent-hot); }
+        .block-mini.cold:hover { border-color: var(--accent-cold); }
+        .block-mini.selected { border-color: var(--accent-cyan); transform: translateY(-3px); }
+
+        .block-mini .block-num { font-weight: 700; color: var(--text-primary); font-size: 0.9rem; }
+        .block-mini .block-txs { color: var(--text-muted); font-size: 0.65rem; margin-top: 4px; }
+
+        .block-link {
+            width: 20px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-cyan), transparent);
+            flex-shrink: 0;
+        }
+
+        .genesis-block { background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan)); }
+
+        /* Block Detail */
+        .block-detail-section { margin-top: 30px; }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-title { font-size: 1.25rem; font-weight: 600; }
+
+        .block-detail-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .block-detail-header {
+            padding: 20px 24px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .block-number-badge { display: flex; align-items: center; gap: 12px; }
+
+        .block-badge {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .block-badge.hot { background: rgba(239, 68, 68, 0.2); color: var(--accent-hot); }
+        .block-badge.cold { background: rgba(59, 130, 246, 0.2); color: var(--accent-cold); }
+
+        .block-detail-content { padding: 24px; }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .detail-item {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 10px;
+        }
+
+        .detail-item.full-width { grid-column: 1 / -1; }
+
+        .detail-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .detail-value {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.85rem;
+            word-break: break-all;
+            color: var(--accent-cyan);
+        }
+
+        .detail-value.hash { font-size: 0.7rem; }
+        .detail-value.large { font-size: 1.5rem; font-weight: 700; }
+
+        /* Transactions */
+        .transactions-section { margin-top: 24px; }
+
+        .transactions-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .tx-count-badge {
+            background: var(--accent-purple);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .transaction-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .tx-header {
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-left: 4px solid var(--accent-cyan);
+        }
+
+        .tx-header:hover { background: var(--bg-block); }
+
+        .tx-id-section { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+        .tx-type-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tx-type-badge.endorser { background: var(--accent-green); color: var(--bg-primary); }
+        .tx-type-badge.config { background: var(--accent-yellow); color: var(--bg-primary); }
+        .tx-type-badge.unknown { background: var(--text-muted); color: var(--bg-primary); }
+
+        .tx-id { font-family: monospace; font-size: 0.75rem; color: var(--text-secondary); }
+
+        .tx-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .tx-body {
+            display: block;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-primary);
+        }
+
+        .tx-body.collapsed { display: none; }
+
+        .tx-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .tx-detail-grid.four-col {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .tx-action {
+            background: var(--bg-card);
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 12px;
+            border-left: 3px solid var(--accent-purple);
+        }
+
+        .action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .chaincode-name { font-weight: 600; color: var(--accent-purple); }
+
+        .function-name {
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .args-section { margin-top: 12px; }
+        .args-title { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; }
+
+        .args-list {
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        .arg-item {
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border-color);
+        }
+
+        .arg-item:last-child { border-bottom: none; }
+        .arg-index { color: var(--accent-purple); margin-right: 12px; min-width: 30px; font-weight: 600; }
+        .arg-value { color: var(--text-primary); word-break: break-all; }
+        .arg-label { color: var(--accent-cyan); font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px; display: block; }
+
+        /* Organization Badge */
+        .org-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .org-badge.forensiclab { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .org-badge.court { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+        .org-badge.orderer { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+
+        /* Validation Badge */
+        .validation-badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .validation-badge.valid { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .validation-badge.invalid { background: rgba(239, 68, 68, 0.2); color: var(--accent-hot); }
+
+        /* Metadata Display */
+        .metadata-section {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+        .metadata-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .metadata-item {
+            padding: 8px;
+            background: var(--bg-card);
+            border-radius: 4px;
+        }
+        .metadata-key {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .metadata-val {
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+
+        /* Block Timeline */
+        .block-timeline {
+            position: relative;
+            padding-left: 30px;
+            margin-top: 20px;
+        }
+        .block-timeline::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border-color);
+        }
+        .timeline-entry {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        .timeline-entry::before {
+            content: '';
+            position: absolute;
+            left: -24px;
+            top: 8px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            border: 2px solid var(--bg-primary);
+        }
+        .timeline-entry.config::before { background: var(--accent-yellow); }
+        .timeline-entry.endorser::before { background: var(--accent-green); }
+
+        /* Expand/Collapse Toggle */
+        .expand-toggle {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+        .expand-toggle:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+        /* Query Section */
+        .query-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        .query-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; }
+
+        .form-input {
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .form-input:focus { outline: none; border-color: var(--accent-cyan); }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: var(--accent-cyan); color: var(--bg-primary); }
+        .btn-primary:hover { filter: brightness(1.1); }
+        .btn-secondary { background: var(--bg-block); color: var(--text-primary); }
+
+        .chain-select { display: flex; gap: 8px; align-items: flex-end; }
+
+        .chain-btn {
+            padding: 12px 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chain-btn.hot.selected { border-color: var(--accent-hot); color: var(--accent-hot); background: rgba(239, 68, 68, 0.1); }
+        .chain-btn.cold.selected { border-color: var(--accent-cold); color: var(--accent-cold); background: rgba(59, 130, 246, 0.1); }
+
+        /* Evidence Result */
+        .evidence-result {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .evidence-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .evidence-title { font-size: 1.1rem; font-weight: 600; }
+
+        .evidence-status {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .evidence-status.ACTIVE { background: var(--accent-green); color: var(--bg-primary); }
+        .evidence-status.ARCHIVED { background: var(--accent-yellow); color: var(--bg-primary); }
+        .evidence-status.REACTIVATED { background: var(--accent-cyan); color: var(--bg-primary); }
+        .evidence-status.INVALIDATED { background: var(--accent-hot); color: white; }
+
+        .evidence-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .evidence-field {
+            padding: 12px;
+            background: var(--bg-card);
+            border-radius: 8px;
+        }
+
+        .evidence-field-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .evidence-field-value {
+            font-family: monospace;
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+
+        /* Timeline */
+        .custody-timeline {
+            margin-top: 24px;
+            padding: 20px;
+            background: var(--bg-card);
+            border-radius: 12px;
+        }
+
+        .timeline-title { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 32px;
+            padding-bottom: 24px;
+            border-left: 2px solid var(--border-color);
+        }
+
+        .timeline-item:last-child { border-left-color: transparent; padding-bottom: 0; }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -7px;
+            top: 0;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+        }
+
+        .timeline-event-type { font-weight: 600; color: var(--accent-cyan); margin-bottom: 4px; }
+        .timeline-timestamp { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; }
+        .timeline-description { font-size: 0.85rem; color: var(--text-secondary); }
+        .timeline-actor { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+        /* Loading & States */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border-color);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text { margin-top: 16px; color: var(--text-muted); }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--accent-hot);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            color: var(--accent-hot);
+        }
+
+        .no-data { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+
+        .offline-notice {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--accent-hot);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            color: var(--accent-hot);
+            font-size: 0.9rem;
+        }
+
+        .view-content { display: none; }
+        .view-content.active { display: block; }
+
+        .refresh-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+        .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+
+        .raw-json {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            max-height: 400px;
+            overflow: auto;
+        }
+
+        .raw-json pre {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .toggle-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+
+        .toggle-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+        /* Containers View */
+        .container-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 16px;
+        }
+
+        .container-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .container-info h4 { font-size: 0.9rem; margin-bottom: 4px; }
+        .container-info p { font-size: 0.75rem; color: var(--text-muted); }
+
+        @media (max-width: 1200px) {
+            .chains-overview { grid-template-columns: 1fr; }
+            .detail-grid { grid-template-columns: 1fr; }
+            .query-form { grid-template-columns: 1fr; }
+            .evidence-grid { grid-template-columns: 1fr; }
+            .tx-detail-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div>
+            <h1>DFIR Chain-of-Custody Explorer</h1>
+            <p class="header-subtitle">Detailed Blockchain Visualization | Hyperledger Fabric 3.0</p>
+        </div>
+        <div class="header-status">
+            <div class="status-indicator">
+                <span class="status-dot" id="network-status"></span>
+                <span id="network-status-text">Checking...</span>
+            </div>
+            <button class="refresh-btn" onclick="refreshAll()" id="refresh-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                </svg>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <nav class="nav-tabs">
+        <button class="nav-tab active" onclick="showView('overview')">Overview</button>
+        <button class="nav-tab" onclick="showView('blocks')">Block Explorer</button>
+        <button class="nav-tab" onclick="showView('evidence')">Evidence Query</button>
+        <button class="nav-tab" onclick="showView('containers')">Network Status</button>
+    </nav>
+
+    <main class="main-content">
+        <!-- Overview View -->
+        <div id="view-overview" class="view-content active">
+            <div class="chains-overview">
+                <!-- Hot Chain Card -->
+                <div class="chain-card hot">
+                    <div class="chain-header">
+                        <div class="chain-title">
+                            <div class="chain-icon hot">&#128293;</div>
+                            <div>
+                                <div class="chain-name hot">Hot Chain</div>
+                                <div class="chain-channel">Channel: hotchannel</div>
+                            </div>
+                        </div>
+                        <span class="chain-status-badge" id="hot-status-badge">Checking...</span>
+                    </div>
+                    <div class="chain-stats">
+                        <div class="stat-box">
+                            <div class="stat-value" id="hot-height">-</div>
+                            <div class="stat-label">Block Height</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="hot-txs">-</div>
+                            <div class="stat-label">Transactions</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="hot-peers">4</div>
+                            <div class="stat-label">Peers</div>
+                        </div>
+                    </div>
+                    <div class="hash-info" id="hot-hash-info">
+                        <div class="hash-row">
+                            <span class="hash-label">Current Block Hash</span>
+                            <span class="hash-value" id="hot-current-hash">Loading...</span>
+                        </div>
+                        <div class="hash-row">
+                            <span class="hash-label">Previous Block Hash</span>
+                            <span class="hash-value" id="hot-prev-hash">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="blocks-visual">
+                        <div class="blocks-chain" id="hot-blocks-visual">
+                            <div class="loading"><div class="spinner"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cold Chain Card -->
+                <div class="chain-card cold">
+                    <div class="chain-header">
+                        <div class="chain-title">
+                            <div class="chain-icon cold">&#10052;</div>
+                            <div>
+                                <div class="chain-name cold">Cold Chain</div>
+                                <div class="chain-channel">Channel: coldchannel</div>
+                            </div>
+                        </div>
+                        <span class="chain-status-badge" id="cold-status-badge">Checking...</span>
+                    </div>
+                    <div class="chain-stats">
+                        <div class="stat-box">
+                            <div class="stat-value" id="cold-height">-</div>
+                            <div class="stat-label">Block Height</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="cold-txs">-</div>
+                            <div class="stat-label">Transactions</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="cold-peers">4</div>
+                            <div class="stat-label">Peers</div>
+                        </div>
+                    </div>
+                    <div class="hash-info" id="cold-hash-info">
+                        <div class="hash-row">
+                            <span class="hash-label">Current Block Hash</span>
+                            <span class="hash-value" id="cold-current-hash">Loading...</span>
+                        </div>
+                        <div class="hash-row">
+                            <span class="hash-label">Previous Block Hash</span>
+                            <span class="hash-value" id="cold-prev-hash">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="blocks-visual">
+                        <div class="blocks-chain" id="cold-blocks-visual">
+                            <div class="loading"><div class="spinner"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selected Block Detail -->
+            <div id="selected-block-detail" class="block-detail-section" style="display: none;">
+                <div class="section-header">
+                    <h2 class="section-title">Block Details</h2>
+                    <button class="toggle-btn" onclick="toggleRawJson()">Show Raw JSON</button>
+                </div>
+                <div class="block-detail-card">
+                    <div class="block-detail-header">
+                        <div class="block-number-badge">
+                            <span class="block-badge" id="detail-chain-badge">HOT</span>
+                            <span style="font-size: 1.25rem; font-weight: 600;">Block #<span id="detail-block-num">0</span></span>
+                        </div>
+                        <span style="color: var(--text-muted);" id="detail-timestamp">-</span>
+                    </div>
+                    <div class="block-detail-content">
+                        <h4 style="margin-bottom: 16px; color: var(--accent-cyan);">Block Information</h4>
+                        <div class="detail-grid" style="grid-template-columns: repeat(4, 1fr);">
+                            <div class="detail-item">
+                                <div class="detail-label">Block Number</div>
+                                <div class="detail-value large" id="detail-block-number">0</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Transaction Count</div>
+                                <div class="detail-value large" id="detail-tx-count-large">0</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Channel</div>
+                                <div class="detail-value" id="detail-channel">-</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Chain Type</div>
+                                <div class="detail-value" id="detail-chain-type">-</div>
+                            </div>
+                        </div>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <div class="detail-label">Block Timestamp (UTC)</div>
+                                <div class="detail-value" id="detail-timestamp-full">-</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Local Time</div>
+                                <div class="detail-value" id="detail-timestamp-local">-</div>
+                            </div>
+                        </div>
+                        <h4 style="margin: 20px 0 16px; color: var(--accent-cyan);">Cryptographic Hashes</h4>
+                        <div class="detail-grid">
+                            <div class="detail-item full-width">
+                                <div class="detail-label">Data Hash (SHA-256 of block data - proves data integrity)</div>
+                                <div class="detail-value hash" id="detail-data-hash" style="font-size: 0.8rem;">-</div>
+                            </div>
+                            <div class="detail-item full-width">
+                                <div class="detail-label">Previous Block Hash (cryptographic link to parent block - forms the chain)</div>
+                                <div class="detail-value hash" id="detail-prev-hash" style="font-size: 0.8rem;">-</div>
+                            </div>
+                        </div>
+
+                        <div class="transactions-section">
+                            <div class="transactions-header">
+                                <h3 style="font-size: 1rem;">Transactions in this Block</h3>
+                                <span class="tx-count-badge" id="detail-tx-count">0 Transactions</span>
+                            </div>
+                            <div id="transactions-list">
+                                <div class="no-data">No transactions in this block (genesis/config block)</div>
+                            </div>
+                        </div>
+
+                        <div class="raw-json" id="raw-json-view" style="display: none;">
+                            <pre id="raw-json-content"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Block Explorer View -->
+        <div id="view-blocks" class="view-content">
+            <div class="section-header">
+                <h2 class="section-title">Block Explorer</h2>
+                <div class="chain-select">
+                    <button class="chain-btn hot selected" onclick="selectExplorerChain('hot')">Hot Chain</button>
+                    <button class="chain-btn cold" onclick="selectExplorerChain('cold')">Cold Chain</button>
+                </div>
+            </div>
+            <div id="blocks-list-container">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p class="loading-text">Loading blocks...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Evidence Query View -->
+        <div id="view-evidence" class="view-content">
+            <div class="query-section">
+                <h2 class="section-title" style="margin-bottom: 20px;">Query Evidence</h2>
+                <div class="query-form">
+                    <div class="form-group">
+                        <label class="form-label">Case ID</label>
+                        <input type="text" class="form-input" id="query-case-id" placeholder="e.g., CASE-2026-001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Evidence ID</label>
+                        <input type="text" class="form-input" id="query-evidence-id" placeholder="e.g., EVD-001">
+                    </div>
+                    <div class="chain-select" style="flex-direction: row;">
+                        <button class="chain-btn hot selected" id="query-chain-hot" onclick="selectQueryChain('hot')">Hot</button>
+                        <button class="chain-btn cold" id="query-chain-cold" onclick="selectQueryChain('cold')">Cold</button>
+                        <button class="btn btn-primary" onclick="queryEvidence()">Query</button>
+                    </div>
+                </div>
+                <div id="evidence-result" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Network Status View -->
+        <div id="view-containers" class="view-content">
+            <div class="section-header">
+                <h2 class="section-title">Network Status</h2>
+                <button class="btn btn-secondary" onclick="checkContainers()">Refresh Status</button>
+            </div>
+            <div id="containers-list">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p class="loading-text">Checking network status...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api';
+        let currentExplorerChain = 'hot';
+        let currentQueryChain = 'hot';
+        let selectedBlockData = null;
+        let chainStatus = { hot: false, cold: false };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshAll();
+            setInterval(refreshStatus, 30000);
+        });
+
+        function showView(viewName) {
+            document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('view-' + viewName).classList.add('active');
+            event.target.classList.add('active');
+
+            if (viewName === 'blocks') loadBlocksList();
+            else if (viewName === 'containers') checkContainers();
+        }
+
+        async function refreshAll() {
+            const btn = document.getElementById('refresh-btn');
+            btn.classList.add('spinning');
+            try {
+                await refreshStatus();
+                await Promise.all([loadChainVisual('hot'), loadChainVisual('cold')]);
+            } finally {
+                btn.classList.remove('spinning');
+            }
+        }
+
+        async function refreshStatus() {
+            try {
+                const res = await fetch(API_BASE + '/status');
+                const data = await res.json();
+
+                // Hot chain
+                const hotOnline = data.hot && data.hot.height > 0;
+                chainStatus.hot = hotOnline;
+                document.getElementById('hot-height').textContent = data.hot?.height || 0;
+                document.getElementById('hot-status-badge').textContent = hotOnline ? 'Online' : 'Offline';
+                document.getElementById('hot-status-badge').className = 'chain-status-badge ' + (hotOnline ? 'online' : 'offline');
+                document.getElementById('hot-current-hash').textContent = formatHash(data.hot?.currentBlockHash);
+                document.getElementById('hot-prev-hash').textContent = formatHash(data.hot?.previousBlockHash, data.hot?.height);
+
+                // Cold chain
+                const coldOnline = data.cold && data.cold.height > 0;
+                chainStatus.cold = coldOnline;
+                document.getElementById('cold-height').textContent = data.cold?.height || 0;
+                document.getElementById('cold-status-badge').textContent = coldOnline ? 'Online' : 'Offline';
+                document.getElementById('cold-status-badge').className = 'chain-status-badge ' + (coldOnline ? 'online' : 'offline');
+                document.getElementById('cold-current-hash').textContent = formatHash(data.cold?.currentBlockHash);
+                document.getElementById('cold-prev-hash').textContent = formatHash(data.cold?.previousBlockHash, data.cold?.height);
+
+                // Overall status
+                const statusDot = document.getElementById('network-status');
+                const statusText = document.getElementById('network-status-text');
+                if (hotOnline && coldOnline) {
+                    statusDot.className = 'status-dot online';
+                    statusText.textContent = 'Both Chains Online';
+                } else if (hotOnline || coldOnline) {
+                    statusDot.className = 'status-dot online';
+                    statusText.textContent = (hotOnline ? 'Hot' : 'Cold') + ' Chain Online';
+                } else {
+                    statusDot.className = 'status-dot offline';
+                    statusText.textContent = 'Network Offline';
+                }
+            } catch (e) {
+                document.getElementById('network-status').className = 'status-dot offline';
+                document.getElementById('network-status-text').textContent = 'API Unavailable';
+            }
+        }
+
+        async function loadChainVisual(chain) {
+            const container = document.getElementById(chain + '-blocks-visual');
+            const isOnline = chainStatus[chain];
+
+            if (!isOnline) {
+                container.innerHTML = `<div class="offline-notice">
+                    ${chain.charAt(0).toUpperCase() + chain.slice(1)} chain is offline.
+                    Start the network to view blocks.
+                </div>`;
+                document.getElementById(chain + '-txs').textContent = '-';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/${chain}/blocks?limit=12`);
+                const data = await res.json();
+
+                if (!data.blocks || data.blocks.length === 0) {
+                    container.innerHTML = '<div class="no-data">No blocks found</div>';
+                    return;
+                }
+
+                let totalTxs = 0;
+                data.blocks.forEach(b => totalTxs += (b.txCount || 0));
+                document.getElementById(chain + '-txs').textContent = totalTxs;
+
+                const blocks = data.blocks.reverse();
+                let html = '';
+
+                blocks.forEach((block, idx) => {
+                    const isGenesis = block.blockNumber === 0;
+                    const txLabel = block.txCount === 1 ? '1 Transaction' : (block.txCount || 0) + ' Transactions';
+                    html += `
+                        <div class="block-mini ${chain} ${isGenesis ? 'genesis-block' : ''}"
+                             onclick="selectBlock('${chain}', ${block.blockNumber})"
+                             data-block="${block.blockNumber}"
+                             title="Block #${block.blockNumber} - ${txLabel}">
+                            <span class="block-num">#${block.blockNumber}</span>
+                            <span class="block-txs">${block.txCount || 0} tx</span>
+                        </div>
+                    `;
+                    if (idx < blocks.length - 1) {
+                        html += '<div class="block-link"></div>';
+                    }
+                });
+
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = `<div class="error-message">Failed to load: ${e.message}</div>`;
+            }
+        }
+
+        async function selectBlock(chain, blockNum) {
+            document.querySelectorAll('.block-mini').forEach(b => b.classList.remove('selected'));
+            const selectedEl = document.querySelector(`.block-mini[data-block="${blockNum}"]`);
+            if (selectedEl) selectedEl.classList.add('selected');
+
+            const detailSection = document.getElementById('selected-block-detail');
+            detailSection.style.display = 'block';
+
+            const badge = document.getElementById('detail-chain-badge');
+            badge.textContent = chain.toUpperCase();
+            badge.className = 'block-badge ' + chain;
+            document.getElementById('detail-block-num').textContent = blockNum;
+
+            try {
+                const res = await fetch(`${API_BASE}/${chain}/block/${blockNum}`);
+                const block = await res.json();
+                selectedBlockData = block;
+
+                document.getElementById('detail-block-number').textContent = block.blockNumber;
+                document.getElementById('detail-tx-count-large').textContent = block.txCount || 0;
+                document.getElementById('detail-channel').textContent = block.channel || chain + 'channel';
+                document.getElementById('detail-chain-type').textContent = chain === 'hot' ? 'Hot Chain (Active)' : 'Cold Chain (Archive)';
+                document.getElementById('detail-timestamp').textContent = formatTimestamp(block.timestamp);
+                document.getElementById('detail-timestamp-full').textContent = block.timestamp || 'Not available';
+                document.getElementById('detail-timestamp-local').textContent = formatTimestamp(block.timestamp);
+                document.getElementById('detail-data-hash').textContent = block.dataHash || 'Not available';
+                document.getElementById('detail-prev-hash').textContent = block.blockNumber === 0 ? 'Genesis Block (no previous)' : formatHash(block.previousHash);
+
+                const txCount = block.txCount || 0;
+                document.getElementById('detail-tx-count').textContent = txCount + (txCount === 1 ? ' Transaction' : ' Transactions');
+
+                renderTransactions(block.transactions || []);
+                document.getElementById('raw-json-content').textContent = JSON.stringify(block, null, 2);
+            } catch (e) {
+                document.getElementById('transactions-list').innerHTML =
+                    `<div class="error-message">Failed to load block: ${e.message}</div>`;
+            }
+
+            detailSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function formatTimestamp(ts) {
+            if (!ts || ts === 'N/A') return 'Not available';
+            try {
+                const d = new Date(ts);
+                return d.toLocaleString();
+            } catch { return ts; }
+        }
+
+        function formatHash(hash, height = null) {
+            // Handle null, undefined, empty, or 'N/A' hashes
+            if (!hash || hash === 'N/A' || hash === 'null' || hash === '') {
+                // If height is 1, this means only genesis block exists - no previous hash
+                if (height === 1) {
+                    return 'Genesis Block (no previous)';
+                }
+                return 'Not available';
+            }
+            // If it's already a human-readable message, return as-is
+            if (hash.includes('Genesis') || hash.includes('Block')) {
+                return hash;
+            }
+            // Truncate long hex hashes for display
+            if (hash.length > 32) {
+                return hash.substring(0, 16) + '...' + hash.substring(hash.length - 16);
+            }
+            return hash;
+        }
+
+        function renderTransactions(transactions) {
+            const container = document.getElementById('transactions-list');
+
+            if (!transactions || transactions.length === 0) {
+                container.innerHTML = '<div class="no-data">No transactions in this block (configuration or genesis block)</div>';
+                return;
+            }
+
+            let html = '<div class="block-timeline">';
+            transactions.forEach((tx, idx) => {
+                const typeClass = tx.type === 'ENDORSER_TRANSACTION' ? 'endorser' :
+                                  tx.type === 'CONFIG' ? 'config' : 'unknown';
+                const typeName = tx.type === 'ENDORSER_TRANSACTION' ? 'Smart Contract' :
+                                 tx.type === 'CONFIG' ? 'Configuration' : tx.type || 'Unknown';
+                const orgClass = getOrgClass(tx.creatorMSP);
+                const orgIcon = getOrgIcon(tx.creatorMSP);
+
+                html += `
+                    <div class="timeline-entry ${typeClass}">
+                        <div class="transaction-card">
+                            <div class="tx-header" onclick="toggleTx(${idx})">
+                                <div class="tx-id-section">
+                                    <span class="tx-type-badge ${typeClass}">${typeName}</span>
+                                    <span class="org-badge ${orgClass}">${orgIcon} ${tx.creatorMSP || 'N/A'}</span>
+                                    <span class="validation-badge ${tx.validationCode === 'VALID' ? 'valid' : 'invalid'}">${tx.validationCode || 'VALID'}</span>
+                                </div>
+                                <div class="tx-meta">
+                                    <span>${formatTimestamp(tx.timestamp)}</span>
+                                    <button class="expand-toggle" onclick="event.stopPropagation(); toggleTx(${idx})">Toggle Details</button>
+                                </div>
+                            </div>
+                            <div class="tx-body" id="tx-body-${idx}">
+                                <h4 style="margin-bottom: 12px; color: var(--accent-cyan); font-size: 0.9rem;">Transaction Details</h4>
+                                <div class="tx-detail-grid four-col">
+                                    <div class="detail-item">
+                                        <div class="detail-label">Transaction Index</div>
+                                        <div class="detail-value large">#${tx.txIndex !== undefined ? tx.txIndex : idx}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Type Code</div>
+                                        <div class="detail-value">${tx.typeCode !== undefined ? tx.typeCode : 'N/A'} (${typeName})</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Channel</div>
+                                        <div class="detail-value">${tx.channelId || 'N/A'}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Validation</div>
+                                        <div class="detail-value" style="color: ${tx.validationCode === 'VALID' ? 'var(--accent-green)' : 'var(--accent-hot)'};">${tx.validationCode || 'VALID'}</div>
+                                    </div>
+                                </div>
+                                <div class="detail-item full-width" style="margin-bottom: 16px;">
+                                    <div class="detail-label">Full Transaction ID</div>
+                                    <div class="detail-value hash" style="font-size: 0.75rem;">${tx.txId || 'N/A'}</div>
+                                </div>
+                                <div class="tx-detail-grid">
+                                    <div class="detail-item">
+                                        <div class="detail-label">Creator Organization (MSP)</div>
+                                        <div class="detail-value">
+                                            <span class="org-badge ${orgClass}" style="font-size: 0.85rem;">${orgIcon} ${tx.creatorMSP || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Timestamp (UTC)</div>
+                                        <div class="detail-value">${tx.timestamp || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                ${renderTxActions(tx.actions || [], tx.creatorMSP)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        function getOrgClass(msp) {
+            if (!msp) return '';
+            if (msp.toLowerCase().includes('forensiclab')) return 'forensiclab';
+            if (msp.toLowerCase().includes('court')) return 'court';
+            if (msp.toLowerCase().includes('orderer')) return 'orderer';
+            return '';
+        }
+
+        function getOrgIcon(msp) {
+            if (!msp) return '🏢';
+            if (msp.toLowerCase().includes('forensiclab')) return '🔬';
+            if (msp.toLowerCase().includes('court')) return '⚖️';
+            if (msp.toLowerCase().includes('orderer')) return '📋';
+            return '🏢';
+        }
+
+        function renderTxActions(actions, creatorMSP) {
+            if (!actions || actions.length === 0) {
+                return '<div class="no-data">No chaincode actions in this transaction</div>';
+            }
+
+            let html = '<h4 style="margin-top: 16px; margin-bottom: 12px; font-size: 0.9rem; color: var(--accent-purple);">Chaincode Actions</h4>';
+            actions.forEach((action, i) => {
+                const funcName = action.function || 'Unknown';
+                const argLabels = getArgLabels(funcName);
+                const parsedMetadata = parseMetadataArg(action.args, funcName);
+
+                html += `
+                    <div class="tx-action">
+                        <div class="action-header">
+                            <span class="chaincode-name">Chaincode: ${action.chaincode || 'coc'}</span>
+                            <span class="function-name">${funcName}</span>
+                        </div>
+                        <div class="tx-detail-grid" style="margin-top: 12px;">
+                            <div class="detail-item">
+                                <div class="detail-label">Response Status</div>
+                                <div class="detail-value" style="color: ${action.responseStatus === 200 ? 'var(--accent-green)' : 'var(--accent-hot)'};">
+                                    ${action.responseStatus || 'N/A'} ${action.responseStatus === 200 ? '(Success)' : ''}
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Submitted By</div>
+                                <div class="detail-value">${creatorMSP || 'N/A'}</div>
+                            </div>
+                        </div>
+                        <div class="args-section">
+                            <div class="args-title">Function Arguments (${(action.args || []).length} parameters)</div>
+                            <div class="args-list">
+                                ${(action.args || []).length > 0 ?
+                                    action.args.map((arg, idx) => {
+                                        const label = argLabels[idx] || `Argument ${idx}`;
+                                        const isJson = arg && (arg.startsWith('{') || arg.startsWith('['));
+                                        return `<div class="arg-item">
+                                            <div>
+                                                <span class="arg-label">${label}</span>
+                                                <span class="arg-value">${isJson ? formatJsonArg(arg) : escapeHtml(arg)}</span>
+                                            </div>
+                                        </div>`;
+                                    }).join('') :
+                                    '<div class="arg-item"><span class="arg-value" style="color: var(--text-muted);">No arguments</span></div>'
+                                }
+                            </div>
+                        </div>
+                        ${parsedMetadata ? `
+                        <div class="metadata-section">
+                            <div class="metadata-title">📋 Parsed Metadata</div>
+                            <div class="metadata-grid">
+                                ${Object.entries(parsedMetadata).map(([key, val]) => `
+                                    <div class="metadata-item">
+                                        <div class="metadata-key">${formatMetadataKey(key)}</div>
+                                        <div class="metadata-val">${escapeHtml(String(val))}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            return html;
+        }
+
+        function getArgLabels(funcName) {
+            const labels = {
+                'CreateEvidence': ['Case ID', 'Evidence ID', 'IPFS CID', 'SHA-256 Hash', 'Metadata (JSON)'],
+                'TransferCustody': ['Case ID', 'Evidence ID', 'New Custodian', 'Transfer Reason'],
+                'ArchiveToCold': ['Case ID', 'Evidence ID', 'Archive Reason'],
+                'ReactivateFromCold': ['Case ID', 'Evidence ID', 'Reactivation Reason'],
+                'InvalidateEvidence': ['Case ID', 'Evidence ID', 'Invalidation Reason', 'Related TX ID'],
+                'GetEvidenceSummary': ['Case ID', 'Evidence ID'],
+                'QueryEvidencesByCase': ['Case ID'],
+                'GetCustodyChain': ['Case ID', 'Evidence ID'],
+                'ApproveChaincodeDefinitionForMyOrg': ['Chaincode Definition'],
+                'CommitChaincodeDefinition': ['Chaincode Definition'],
+            };
+            return labels[funcName] || [];
+        }
+
+        function parseMetadataArg(args, funcName) {
+            if (!args || args.length === 0) return null;
+
+            // For CreateEvidence, the last argument is usually metadata JSON
+            if (funcName === 'CreateEvidence' && args.length >= 5) {
+                try {
+                    return JSON.parse(args[4]);
+                } catch { return null; }
+            }
+
+            // Try to find any JSON argument
+            for (const arg of args) {
+                if (arg && arg.startsWith('{')) {
+                    try {
+                        return JSON.parse(arg);
+                    } catch { continue; }
+                }
+            }
+            return null;
+        }
+
+        function formatMetadataKey(key) {
+            return key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
+        }
+
+        function formatJsonArg(jsonStr) {
+            try {
+                const obj = JSON.parse(jsonStr);
+                return `<pre style="margin: 0; white-space: pre-wrap; font-size: 0.75rem;">${escapeHtml(JSON.stringify(obj, null, 2))}</pre>`;
+            } catch {
+                return escapeHtml(jsonStr);
+            }
+        }
+
+        function toggleTx(idx) {
+            const body = document.getElementById('tx-body-' + idx);
+            body.classList.toggle('collapsed');
+        }
+
+        function toggleRawJson() {
+            const view = document.getElementById('raw-json-view');
+            view.style.display = view.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function selectExplorerChain(chain) {
+            currentExplorerChain = chain;
+            document.querySelectorAll('#view-blocks .chain-btn').forEach(b => b.classList.remove('selected'));
+            document.querySelector(`#view-blocks .chain-btn.${chain}`).classList.add('selected');
+            loadBlocksList();
+        }
+
+        async function loadBlocksList() {
+            const container = document.getElementById('blocks-list-container');
+
+            if (!chainStatus[currentExplorerChain]) {
+                container.innerHTML = `<div class="offline-notice">
+                    ${currentExplorerChain.charAt(0).toUpperCase() + currentExplorerChain.slice(1)} chain is offline.
+                    Start the network to explore blocks.
+                </div>`;
+                return;
+            }
+
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p class="loading-text">Loading blocks...</p></div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/${currentExplorerChain}/blocks?limit=20`);
+                const data = await res.json();
+
+                if (!data.blocks || data.blocks.length === 0) {
+                    container.innerHTML = '<div class="no-data">No blocks found</div>';
+                    return;
+                }
+
+                let html = '';
+                data.blocks.forEach(block => {
+                    const txCount = block.txCount || 0;
+                    const txLabel = txCount === 1 ? '1 Transaction' : txCount + ' Transactions';
+
+                    html += `
+                        <div class="block-detail-card" style="margin-bottom: 16px; cursor: pointer;" onclick="selectBlockFromList('${currentExplorerChain}', ${block.blockNumber})">
+                            <div class="block-detail-header">
+                                <div class="block-number-badge">
+                                    <span class="block-badge ${currentExplorerChain}">${currentExplorerChain.toUpperCase()}</span>
+                                    <span style="font-size: 1.1rem; font-weight: 600;">Block #${block.blockNumber}</span>
+                                </div>
+                                <span style="color: var(--text-muted);">${txLabel}</span>
+                            </div>
+                            <div style="padding: 16px;">
+                                <div class="detail-grid">
+                                    <div class="detail-item">
+                                        <div class="detail-label">Data Hash</div>
+                                        <div class="detail-value hash">${block.dataHash || 'Not available'}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Previous Hash</div>
+                                        <div class="detail-value hash">${block.blockNumber === 0 ? 'Genesis Block (no previous)' : formatHash(block.previousHash)}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Timestamp</div>
+                                        <div class="detail-value">${formatTimestamp(block.timestamp)}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Channel</div>
+                                        <div class="detail-value">${block.channel || currentExplorerChain + 'channel'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = `<div class="error-message">Failed to load blocks: ${e.message}</div>`;
+            }
+        }
+
+        function selectBlockFromList(chain, blockNum) {
+            showView('overview');
+            document.querySelector('.nav-tab').classList.add('active');
+            setTimeout(() => selectBlock(chain, blockNum), 100);
+        }
+
+        function selectQueryChain(chain) {
+            currentQueryChain = chain;
+            document.getElementById('query-chain-hot').classList.toggle('selected', chain === 'hot');
+            document.getElementById('query-chain-cold').classList.toggle('selected', chain === 'cold');
+        }
+
+        async function queryEvidence() {
+            const caseId = document.getElementById('query-case-id').value;
+            const evidenceId = document.getElementById('query-evidence-id').value;
+            const resultContainer = document.getElementById('evidence-result');
+
+            if (!caseId || !evidenceId) {
+                resultContainer.innerHTML = '<div class="error-message">Please enter both Case ID and Evidence ID</div>';
+                resultContainer.style.display = 'block';
+                return;
+            }
+
+            if (!chainStatus[currentQueryChain]) {
+                resultContainer.innerHTML = `<div class="error-message">${currentQueryChain.charAt(0).toUpperCase() + currentQueryChain.slice(1)} chain is offline</div>`;
+                resultContainer.style.display = 'block';
+                return;
+            }
+
+            resultContainer.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            resultContainer.style.display = 'block';
+
+            try {
+                const summaryRes = await fetch(`${API_BASE}/${currentQueryChain}/evidence?caseID=${caseId}&evidenceID=${evidenceId}`);
+                const summaryData = await summaryRes.json();
+
+                if (!summaryData.success || !summaryData.data || summaryData.data.includes?.('Error')) {
+                    throw new Error(summaryData.error || summaryData.data || 'Evidence not found');
+                }
+
+                const evidence = typeof summaryData.data === 'string' ? JSON.parse(summaryData.data) : summaryData.data;
+
+                const custodyRes = await fetch(`${API_BASE}/${currentQueryChain}/custody?caseID=${caseId}&evidenceID=${evidenceId}`);
+                const custodyData = await custodyRes.json();
+
+                let html = `
+                    <div class="evidence-result">
+                        <div class="evidence-header">
+                            <span class="evidence-title">${evidence.evidenceId || evidenceId} - ${evidence.caseId || caseId}</span>
+                            <span class="evidence-status ${evidence.status}">${evidence.status || 'Unknown'}</span>
+                        </div>
+                        <div class="evidence-grid">
+                            <div class="evidence-field">
+                                <div class="evidence-field-label">Case ID</div>
+                                <div class="evidence-field-value">${evidence.caseId || caseId}</div>
+                            </div>
+                            <div class="evidence-field">
+                                <div class="evidence-field-label">Evidence ID</div>
+                                <div class="evidence-field-value">${evidence.evidenceId || evidenceId}</div>
+                            </div>
+                            <div class="evidence-field">
+                                <div class="evidence-field-label">IPFS Content ID (CID)</div>
+                                <div class="evidence-field-value">${evidence.cid || 'N/A'}</div>
+                            </div>
+                            <div class="evidence-field">
+                                <div class="evidence-field-label">SHA-256 Hash</div>
+                                <div class="evidence-field-value" style="font-size: 0.7rem;">${evidence.hash || 'N/A'}</div>
+                            </div>
+                            <div class="evidence-field">
+                                <div class="evidence-field-label">Current Custodian</div>
+                                <div class="evidence-field-value">${evidence.currentOwner || 'N/A'}</div>
+                            </div>
+                            <div class="evidence-field">
+                                <div class="evidence-field-label">Custodian Organization</div>
+                                <div class="evidence-field-value">${evidence.ownerOrgMSP || 'N/A'}</div>
+                            </div>
+                            <div class="evidence-field">
+                                <div class="evidence-field-label">Created</div>
+                                <div class="evidence-field-value">${formatTimestamp(evidence.createdAt)}</div>
+                            </div>
+                            <div class="evidence-field">
+                                <div class="evidence-field-label">Last Updated</div>
+                                <div class="evidence-field-value">${formatTimestamp(evidence.updatedAt)}</div>
+                            </div>
+                        </div>
+                        ${renderCustodyTimeline(custodyData.data || evidence.events || [])}
+                    </div>
+                `;
+
+                resultContainer.innerHTML = html;
+            } catch (e) {
+                resultContainer.innerHTML = `<div class="error-message">Error: ${e.message}</div>`;
+            }
+        }
+
+        function renderCustodyTimeline(events) {
+            if (!events || events.length === 0) return '';
+
+            let html = `<div class="custody-timeline">
+                <div class="timeline-title">Chain of Custody (${events.length} events)</div>`;
+
+            events.forEach(event => {
+                html += `
+                    <div class="timeline-item">
+                        <div class="timeline-event-type">${event.eventType || 'Event'}</div>
+                        <div class="timeline-timestamp">${formatTimestamp(event.timestamp)}</div>
+                        <div class="timeline-description">${event.description || 'No description'}</div>
+                        <div class="timeline-actor">Organization: ${event.orgMSP || 'N/A'}</div>
+                    </div>
+                `;
+            });
+
+            return html + '</div>';
+        }
+
+        async function checkContainers() {
+            const container = document.getElementById('containers-list');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p class="loading-text">Checking containers...</p></div>';
+
+            try {
+                const res = await fetch(API_BASE + '/containers');
+                const data = await res.json();
+
+                if (!data.containers || data.containers.length === 0) {
+                    container.innerHTML = `
+                        <div class="error-message">
+                            <p style="font-size: 1.1rem; margin-bottom: 12px;">No Fabric containers running</p>
+                            <p style="font-size: 0.9rem; color: var(--text-muted);">
+                                Start the blockchain network using:<br>
+                                <code style="background: var(--bg-secondary); padding: 4px 8px; border-radius: 4px;">./start-all.sh</code>
+                            </p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Group by type
+                const groups = { orderers: [], peers: [], couchdb: [], cli: [], other: [] };
+                data.containers.forEach(c => {
+                    if (c.name.includes('orderer')) groups.orderers.push(c);
+                    else if (c.name.includes('peer')) groups.peers.push(c);
+                    else if (c.name.includes('couchdb')) groups.couchdb.push(c);
+                    else if (c.name.includes('cli')) groups.cli.push(c);
+                    else groups.other.push(c);
+                });
+
+                let html = `<div style="margin-bottom: 20px; color: var(--accent-green); font-size: 1.1rem;">
+                    ${data.count} containers running
+                </div>`;
+
+                const renderGroup = (name, items) => {
+                    if (items.length === 0) return '';
+                    return `
+                        <h3 style="margin: 20px 0 12px; color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase;">${name}</h3>
+                        <div class="container-grid">
+                            ${items.map(c => {
+                                const isHealthy = c.status.includes('Up');
+                                const chain = c.name.includes('hot') ? 'Hot' : c.name.includes('cold') ? 'Cold' : '';
+                                return `
+                                    <div class="container-card">
+                                        <div class="container-info">
+                                            <h4>${c.name}</h4>
+                                            <p>${c.status}${chain ? ' | ' + chain + ' Chain' : ''}</p>
+                                        </div>
+                                        <div class="status-dot ${isHealthy ? 'online' : 'offline'}"></div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                };
+
+                html += renderGroup('Orderer Nodes (Consensus)', groups.orderers);
+                html += renderGroup('Peer Nodes', groups.peers);
+                html += renderGroup('CouchDB Databases', groups.couchdb);
+                html += renderGroup('CLI Containers', groups.cli);
+                html += renderGroup('Other', groups.other);
+
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = `<div class="error-message">Failed to check containers: ${e.message}</div>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

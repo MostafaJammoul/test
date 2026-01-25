@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chain of Custody - Blockchain Management Console</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #0f3460;
+        }
+        .header h1 { color: #00d9ff; margin-bottom: 5px; }
+        .header p { color: #888; font-size: 14px; }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            min-height: calc(100vh - 100px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: rgba(15, 52, 96, 0.5);
+            padding: 20px;
+            border-right: 1px solid #0f3460;
+        }
+        .sidebar h3 { color: #00d9ff; margin-bottom: 15px; font-size: 14px; text-transform: uppercase; }
+
+        /* Chain Status */
+        .chain-status {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .chain-status h4 { margin-bottom: 10px; }
+        .chain-status.hot h4 { color: #ff6b6b; }
+        .chain-status.cold h4 { color: #4ecdc4; }
+        .status-item { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+        .status-value { color: #00d9ff; font-weight: bold; }
+
+        /* Navigation */
+        .nav-section { margin-bottom: 20px; }
+        .nav-btn {
+            display: block;
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            background: rgba(0, 217, 255, 0.1);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            text-align: left;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .nav-btn:hover { background: rgba(0, 217, 255, 0.2); border-color: #00d9ff; }
+        .nav-btn.active { background: rgba(0, 217, 255, 0.3); border-color: #00d9ff; }
+        .nav-btn i { margin-right: 10px; }
+
+        /* Content Area */
+        .content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        /* Panel */
+        .panel {
+            display: none;
+            background: rgba(22, 33, 62, 0.8);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        .panel.active { display: block; }
+        .panel h2 { color: #00d9ff; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #0f3460; }
+
+        /* Forms */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; color: #aaa; font-size: 14px; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #00d9ff;
+        }
+        .form-group textarea { min-height: 100px; resize: vertical; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        /* Chain Selector */
+        .chain-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .chain-btn {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .chain-btn.hot:hover, .chain-btn.hot.selected { border-color: #ff6b6b; background: rgba(255, 107, 107, 0.2); }
+        .chain-btn.cold:hover, .chain-btn.cold.selected { border-color: #4ecdc4; background: rgba(78, 205, 196, 0.2); }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .btn-primary { background: #00d9ff; color: #000; }
+        .btn-primary:hover { background: #00b4d8; }
+        .btn-danger { background: #ff6b6b; color: #fff; }
+        .btn-danger:hover { background: #ff5252; }
+        .btn-success { background: #4ecdc4; color: #000; }
+        .btn-success:hover { background: #3dbdb5; }
+        .btn-warning { background: #ffd93d; color: #000; }
+        .btn-warning:hover { background: #ffc800; }
+
+        /* Results */
+        .result-box {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .result-box.success { border-left: 4px solid #4ecdc4; }
+        .result-box.error { border-left: 4px solid #ff6b6b; }
+        .result-box pre { white-space: pre-wrap; word-break: break-all; }
+
+        /* Evidence Cards */
+        .evidence-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+        .evidence-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #00d9ff;
+        }
+        .evidence-card h4 { color: #00d9ff; margin-bottom: 10px; }
+        .evidence-card .status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .evidence-card .status.ACTIVE { background: #4ecdc4; color: #000; }
+        .evidence-card .status.ARCHIVED { background: #ffd93d; color: #000; }
+        .evidence-card .status.REACTIVATED { background: #00d9ff; color: #000; }
+        .evidence-card .status.INVALIDATED { background: #ff6b6b; color: #fff; }
+        .evidence-card .detail { font-size: 13px; color: #888; margin: 5px 0; }
+        .evidence-card .detail span { color: #fff; }
+
+        /* Custody Timeline */
+        .custody-timeline { margin-top: 20px; }
+        .timeline-item {
+            position: relative;
+            padding-left: 30px;
+            padding-bottom: 20px;
+            border-left: 2px solid #0f3460;
+        }
+        .timeline-item:last-child { border-left: 2px solid transparent; }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 0;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00d9ff;
+        }
+        .timeline-item .event-type { color: #00d9ff; font-weight: bold; font-size: 14px; }
+        .timeline-item .event-time { color: #666; font-size: 12px; margin: 5px 0; }
+        .timeline-item .event-desc { color: #aaa; font-size: 13px; }
+        .timeline-item .event-tx { color: #666; font-size: 11px; font-family: monospace; margin-top: 5px; }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        .loading.show { display: block; }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #0f3460;
+            border-top-color: #00d9ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: bold;
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { background: #4ecdc4; }
+        .toast.error { background: #ff6b6b; }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-container { flex-direction: column; }
+            .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #0f3460; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Chain of Custody - Blockchain Management Console</h1>
+        <p>Digital Forensics Evidence Management System | American University of Beirut FYP</p>
+    </div>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="chain-status hot">
+                <h4>HOT CHAIN</h4>
+                <div class="status-item"><span>Blocks:</span><span class="status-value" id="hot-blocks">-</span></div>
+                <div class="status-item"><span>Channel:</span><span class="status-value">hotchannel</span></div>
+            </div>
+
+            <div class="chain-status cold">
+                <h4>COLD CHAIN</h4>
+                <div class="status-item"><span>Blocks:</span><span class="status-value" id="cold-blocks">-</span></div>
+                <div class="status-item"><span>Channel:</span><span class="status-value">coldchannel</span></div>
+            </div>
+
+            <div class="nav-section">
+                <h3>Evidence Operations</h3>
+                <button class="nav-btn active" onclick="showPanel('create')">Create Evidence</button>
+                <button class="nav-btn" onclick="showPanel('transfer')">Transfer Custody</button>
+                <button class="nav-btn" onclick="showPanel('archive')">Archive to Cold</button>
+                <button class="nav-btn" onclick="showPanel('reactivate')">Reactivate Evidence</button>
+                <button class="nav-btn" onclick="showPanel('invalidate')">Invalidate Evidence</button>
+            </div>
+
+            <div class="nav-section">
+                <h3>Query Operations</h3>
+                <button class="nav-btn" onclick="showPanel('summary')">Get Evidence Summary</button>
+                <button class="nav-btn" onclick="showPanel('bycase')">Query by Case</button>
+                <button class="nav-btn" onclick="showPanel('custody')">View Custody Chain</button>
+            </div>
+
+            <div class="nav-section">
+                <h3>Quick Links</h3>
+                <button class="nav-btn" onclick="window.open('http://localhost:8081', '_blank')">Hot Explorer</button>
+                <button class="nav-btn" onclick="window.open('http://localhost:8082', '_blank')">Cold Explorer</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Create Evidence Panel -->
+            <div id="panel-create" class="panel active">
+                <h2>Create New Evidence</h2>
+                <div class="chain-selector">
+                    <button class="chain-btn hot selected" onclick="selectChain(this, 'hot')">HOT CHAIN (Active Cases)</button>
+                    <button class="chain-btn cold" onclick="selectChain(this, 'cold')">COLD CHAIN (Archived)</button>
+                </div>
+                <form id="form-create" onsubmit="createEvidence(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Case ID *</label>
+                            <input type="text" name="caseID" placeholder="e.g., CYBER-2026-001" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Evidence ID *</label>
+                            <input type="text" name="evidenceID" placeholder="e.g., DISK-IMG-001" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>IPFS CID *</label>
+                            <input type="text" name="cid" placeholder="e.g., QmXyz123..." required>
+                        </div>
+                        <div class="form-group">
+                            <label>SHA-256 Hash *</label>
+                            <input type="text" name="hash" placeholder="e.g., sha256:abc123..." required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Evidence Type</label>
+                        <select name="evidenceType" onchange="updateMetadataTemplate(this)">
+                            <option value="disk_image">Disk Image (E01, DD)</option>
+                            <option value="memory_dump">Memory Dump</option>
+                            <option value="network_capture">Network Capture (PCAP)</option>
+                            <option value="mobile_extraction">Mobile Device Extraction</option>
+                            <option value="document">Document/File</option>
+                            <option value="log_file">Log File</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Metadata (JSON)</label>
+                        <textarea name="metadata" placeholder='{"type": "disk_image", "format": "E01", "size_gb": 500}'></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Evidence</button>
+                </form>
+                <div id="result-create" class="result-box" style="display:none;"></div>
+            </div>
+
+            <!-- Transfer Custody Panel -->
+            <div id="panel-transfer" class="panel">
+                <h2>Transfer Evidence Custody</h2>
+                <div class="chain-selector">
+                    <button class="chain-btn hot selected" onclick="selectChain(this, 'hot')">HOT CHAIN</button>
+                    <button class="chain-btn cold" onclick="selectChain(this, 'cold')">COLD CHAIN</button>
+                </div>
+                <form id="form-transfer" onsubmit="transferCustody(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Case ID *</label>
+                            <input type="text" name="caseID" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Evidence ID *</label>
+                            <input type="text" name="evidenceID" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>New Custodian *</label>
+                        <input type="text" name="newCustodian" placeholder="e.g., Analyst@court.hot.coc.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Transfer Reason</label>
+                        <textarea name="reason" placeholder="Reason for custody transfer..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Transfer Custody</button>
+                </form>
+                <div id="result-transfer" class="result-box" style="display:none;"></div>
+            </div>
+
+            <!-- Archive Panel -->
+            <div id="panel-archive" class="panel">
+                <h2>Archive Evidence to Cold Storage</h2>
+                <p style="color:#ffd93d;margin-bottom:20px;">This marks evidence as archived on the selected chain.</p>
+                <div class="chain-selector">
+                    <button class="chain-btn hot selected" onclick="selectChain(this, 'hot')">HOT CHAIN</button>
+                    <button class="chain-btn cold" onclick="selectChain(this, 'cold')">COLD CHAIN</button>
+                </div>
+                <form id="form-archive" onsubmit="archiveEvidence(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Case ID *</label>
+                            <input type="text" name="caseID" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Evidence ID *</label>
+                            <input type="text" name="evidenceID" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Archive Reason</label>
+                        <textarea name="reason" placeholder="Reason for archiving..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-warning">Archive Evidence</button>
+                </form>
+                <div id="result-archive" class="result-box" style="display:none;"></div>
+            </div>
+
+            <!-- Reactivate Panel -->
+            <div id="panel-reactivate" class="panel">
+                <h2>Reactivate Archived Evidence</h2>
+                <div class="chain-selector">
+                    <button class="chain-btn hot selected" onclick="selectChain(this, 'hot')">HOT CHAIN</button>
+                    <button class="chain-btn cold" onclick="selectChain(this, 'cold')">COLD CHAIN</button>
+                </div>
+                <form id="form-reactivate" onsubmit="reactivateEvidence(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Case ID *</label>
+                            <input type="text" name="caseID" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Evidence ID *</label>
+                            <input type="text" name="evidenceID" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Reactivation Reason</label>
+                        <textarea name="reason" placeholder="Reason for reactivation..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success">Reactivate Evidence</button>
+                </form>
+                <div id="result-reactivate" class="result-box" style="display:none;"></div>
+            </div>
+
+            <!-- Invalidate Panel -->
+            <div id="panel-invalidate" class="panel">
+                <h2>Invalidate Evidence</h2>
+                <p style="color:#ff6b6b;margin-bottom:20px;">WARNING: This permanently marks evidence as invalid!</p>
+                <div class="chain-selector">
+                    <button class="chain-btn hot selected" onclick="selectChain(this, 'hot')">HOT CHAIN</button>
+                    <button class="chain-btn cold" onclick="selectChain(this, 'cold')">COLD CHAIN</button>
+                </div>
+                <form id="form-invalidate" onsubmit="invalidateEvidence(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Case ID *</label>
+                            <input type="text" name="caseID" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Evidence ID *</label>
+                            <input type="text" name="evidenceID" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Invalidation Reason *</label>
+                        <textarea name="reason" placeholder="Reason for invalidation (required)..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Related Transaction ID (if applicable)</label>
+                        <input type="text" name="wrongTxID" placeholder="Transaction ID that caused the issue...">
+                    </div>
+                    <button type="submit" class="btn btn-danger">Invalidate Evidence</button>
+                </form>
+                <div id="result-invalidate" class="result-box" style="display:none;"></div>
+            </div>
+
+            <!-- Summary Panel -->
+            <div id="panel-summary" class="panel">
+                <h2>Get Evidence Summary</h2>
+                <div class="chain-selector">
+                    <button class="chain-btn hot selected" onclick="selectChain(this, 'hot')">HOT CHAIN</button>
+                    <button class="chain-btn cold" onclick="selectChain(this, 'cold')">COLD CHAIN</button>
+                </div>
+                <form id="form-summary" onsubmit="getEvidenceSummary(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Case ID *</label>
+                            <input type="text" name="caseID" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Evidence ID *</label>
+                            <input type="text" name="evidenceID" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Get Summary</button>
+                </form>
+                <div id="result-summary" class="result-box" style="display:none;"></div>
+            </div>
+
+            <!-- Query by Case Panel -->
+            <div id="panel-bycase" class="panel">
+                <h2>Query Evidence by Case</h2>
+                <div class="chain-selector">
+                    <button class="chain-btn hot selected" onclick="selectChain(this, 'hot')">HOT CHAIN</button>
+                    <button class="chain-btn cold" onclick="selectChain(this, 'cold')">COLD CHAIN</button>
+                </div>
+                <form id="form-bycase" onsubmit="queryByCase(event)">
+                    <div class="form-group">
+                        <label>Case ID *</label>
+                        <input type="text" name="caseID" placeholder="Enter case ID to search..." required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </form>
+                <div id="result-bycase" class="evidence-grid" style="margin-top:20px;"></div>
+            </div>
+
+            <!-- Custody Chain Panel -->
+            <div id="panel-custody" class="panel">
+                <h2>View Custody Chain</h2>
+                <div class="chain-selector">
+                    <button class="chain-btn hot selected" onclick="selectChain(this, 'hot')">HOT CHAIN</button>
+                    <button class="chain-btn cold" onclick="selectChain(this, 'cold')">COLD CHAIN</button>
+                </div>
+                <form id="form-custody" onsubmit="getCustodyChain(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Case ID *</label>
+                            <input type="text" name="caseID" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Evidence ID *</label>
+                            <input type="text" name="evidenceID" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">View Custody Chain</button>
+                </form>
+                <div id="result-custody" class="custody-timeline" style="margin-top:20px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let selectedChain = 'hot';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshStatus();
+            setInterval(refreshStatus, 30000);
+        });
+
+        // Show panel
+        function showPanel(name) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('panel-' + name).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Select chain
+        function selectChain(btn, chain) {
+            selectedChain = chain;
+            btn.parentElement.querySelectorAll('.chain-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        // Refresh status
+        async function refreshStatus() {
+            try {
+                const res = await fetch(API_BASE + '/status');
+                const data = await res.json();
+                document.getElementById('hot-blocks').textContent = data.hot?.height || '-';
+                document.getElementById('cold-blocks').textContent = data.cold?.height || '-';
+            } catch (e) {
+                console.error('Status refresh failed:', e);
+            }
+        }
+
+        // Show toast
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + type + ' show';
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // Show result
+        function showResult(id, data, success = true) {
+            const box = document.getElementById(id);
+            box.style.display = 'block';
+            box.className = 'result-box ' + (success ? 'success' : 'error');
+            box.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        // Create Evidence
+        async function createEvidence(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                caseID: form.caseID.value,
+                evidenceID: form.evidenceID.value,
+                cid: form.cid.value,
+                hash: form.hash.value,
+                metadata: form.metadata.value || '{}'
+            };
+            try {
+                const res = await fetch(`${API_BASE}/${selectedChain}/evidence/create`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                showResult('result-create', result, result.success);
+                showToast(result.success ? 'Evidence created!' : 'Failed: ' + result.message, result.success ? 'success' : 'error');
+                if (result.success) refreshStatus();
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Transfer Custody
+        async function transferCustody(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                caseID: form.caseID.value,
+                evidenceID: form.evidenceID.value,
+                newCustodian: form.newCustodian.value,
+                reason: form.reason.value
+            };
+            try {
+                const res = await fetch(`${API_BASE}/${selectedChain}/evidence/transfer`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                showResult('result-transfer', result, result.success);
+                showToast(result.success ? 'Custody transferred!' : 'Failed', result.success ? 'success' : 'error');
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Archive Evidence
+        async function archiveEvidence(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                caseID: form.caseID.value,
+                evidenceID: form.evidenceID.value,
+                reason: form.reason.value
+            };
+            try {
+                const res = await fetch(`${API_BASE}/${selectedChain}/evidence/archive`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                showResult('result-archive', result, result.success);
+                showToast(result.success ? 'Evidence archived!' : 'Failed', result.success ? 'success' : 'error');
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Reactivate Evidence
+        async function reactivateEvidence(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                caseID: form.caseID.value,
+                evidenceID: form.evidenceID.value,
+                reason: form.reason.value
+            };
+            try {
+                const res = await fetch(`${API_BASE}/${selectedChain}/evidence/reactivate`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                showResult('result-reactivate', result, result.success);
+                showToast(result.success ? 'Evidence reactivated!' : 'Failed', result.success ? 'success' : 'error');
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Invalidate Evidence
+        async function invalidateEvidence(e) {
+            e.preventDefault();
+            if (!confirm('Are you sure you want to INVALIDATE this evidence? This action cannot be undone.')) return;
+            const form = e.target;
+            const data = {
+                caseID: form.caseID.value,
+                evidenceID: form.evidenceID.value,
+                reason: form.reason.value,
+                wrongTxID: form.wrongTxID.value
+            };
+            try {
+                const res = await fetch(`${API_BASE}/${selectedChain}/evidence/invalidate`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                showResult('result-invalidate', result, result.success);
+                showToast(result.success ? 'Evidence invalidated!' : 'Failed', result.success ? 'success' : 'error');
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Get Evidence Summary
+        async function getEvidenceSummary(e) {
+            e.preventDefault();
+            const form = e.target;
+            try {
+                const res = await fetch(`${API_BASE}/${selectedChain}/evidence/summary?caseID=${form.caseID.value}&evidenceID=${form.evidenceID.value}`);
+                const result = await res.json();
+                showResult('result-summary', result.data || result, result.success);
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        // Query by Case
+        async function queryByCase(e) {
+            e.preventDefault();
+            const form = e.target;
+            const container = document.getElementById('result-bycase');
+            container.innerHTML = '<div class="loading show"><div class="spinner"></div>Loading...</div>';
+            try {
+                const res = await fetch(`${API_BASE}/${selectedChain}/evidence/bycase?caseID=${form.caseID.value}`);
+                const result = await res.json();
+                if (result.success && result.data && result.data.length > 0) {
+                    container.innerHTML = result.data.map(ev => `
+                        <div class="evidence-card">
+                            <h4>${ev.evidenceID}</h4>
+                            <span class="status ${ev.status}">${ev.status}</span>
+                            <div class="detail">Case: <span>${ev.caseID}</span></div>
+                            <div class="detail">Owner: <span>${ev.currentOwner}</span></div>
+                            <div class="detail">IPFS CID: <span>${ev.cid}</span></div>
+                            <div class="detail">Hash: <span style="font-size:11px;">${ev.hash}</span></div>
+                            <div class="detail">Events: <span>${ev.events?.length || 0}</span></div>
+                            <div class="detail">Created: <span>${ev.createdAt}</span></div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color:#888;">No evidence found for this case.</p>';
+                }
+            } catch (e) {
+                container.innerHTML = '<p style="color:#ff6b6b;">Error: ' + e.message + '</p>';
+            }
+        }
+
+        // Get Custody Chain
+        async function getCustodyChain(e) {
+            e.preventDefault();
+            const form = e.target;
+            const container = document.getElementById('result-custody');
+            container.innerHTML = '<div class="loading show"><div class="spinner"></div>Loading...</div>';
+            try {
+                const res = await fetch(`${API_BASE}/${selectedChain}/evidence/custody?caseID=${form.caseID.value}&evidenceID=${form.evidenceID.value}`);
+                const result = await res.json();
+                if (result.success && result.data && result.data.length > 0) {
+                    container.innerHTML = result.data.map(ev => `
+                        <div class="timeline-item">
+                            <div class="event-type">${ev.eventType}</div>
+                            <div class="event-time">${ev.timestamp}</div>
+                            <div class="event-desc">${ev.description}</div>
+                            <div class="event-desc">By: ${ev.actor} (${ev.orgMSP})</div>
+                            <div class="event-tx">TX: ${ev.txID}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color:#888;">No custody events found.</p>';
+                }
+            } catch (e) {
+                container.innerHTML = '<p style="color:#ff6b6b;">Error: ' + e.message + '</p>';
+            }
+        }
+
+        // Update metadata template based on evidence type
+        function updateMetadataTemplate(select) {
+            const templates = {
+                'disk_image': '{"type": "disk_image", "format": "E01", "size_gb": 500, "source": "", "acquisition_tool": "FTK Imager"}',
+                'memory_dump': '{"type": "memory_dump", "format": "raw", "size_gb": 32, "source": "", "acquisition_tool": "WinPmem"}',
+                'network_capture': '{"type": "network_capture", "format": "pcap", "size_mb": 100, "duration_hours": 24, "source": ""}',
+                'mobile_extraction': '{"type": "mobile_extraction", "device": "", "imei": "", "extraction_type": "full_filesystem"}',
+                'document': '{"type": "document", "format": "", "original_name": "", "source": ""}',
+                'log_file': '{"type": "log_file", "format": "", "source_system": "", "time_range": ""}',
+                'other': '{"type": "other", "description": ""}'
+            };
+            const textarea = select.closest('form').querySelector('textarea[name="metadata"]');
+            textarea.value = templates[select.value] || '';
+        }
+    </script>
+</body>
+</html>

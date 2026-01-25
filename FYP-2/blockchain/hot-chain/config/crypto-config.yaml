@@ -1,0 +1,44 @@
+# Crypto configuration for Hot Chain
+# Domain: *.hot.coc.com
+# This configuration defines the organizational structure for the hot blockchain
+
+OrdererOrgs:
+  - Name: OrdererOrg
+    Domain: hot.coc.com
+    EnableNodeOUs: true
+    Specs:
+      - Hostname: orderer
+        SANS:
+          - localhost
+          - 127.0.0.1
+      - Hostname: orderer2
+        SANS:
+          - localhost
+          - 127.0.0.1
+      - Hostname: orderer3
+        SANS:
+          - localhost
+          - 127.0.0.1
+
+PeerOrgs:
+  - Name: ForensicLab
+    Domain: forensiclab.hot.coc.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+      SANS:
+        - localhost
+        - 127.0.0.1
+    Users:
+      Count: 2
+
+  - Name: Court
+    Domain: court.hot.coc.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+      SANS:
+        - localhost
+        - 127.0.0.1
+    Users:
+      Count: 2

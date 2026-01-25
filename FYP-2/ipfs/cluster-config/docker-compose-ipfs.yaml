@@ -1,0 +1,184 @@
+# Docker Compose configuration for Private IPFS Cluster
+# 4-node cluster: Lab, Court, Redundant, Replica
+# Private network (not connected to public IPFS)
+
+version: '3.7'
+
+volumes:
+  ipfs-lab:
+  ipfs-court:
+  ipfs-redundant:
+  ipfs-replica:
+  ipfs-cluster-lab:
+  ipfs-cluster-court:
+  ipfs-cluster-redundant:
+  ipfs-cluster-replica:
+
+networks:
+  dfir-ipfs:
+    name: dfir-ipfs-network
+
+services:
+  # ============================================================================
+  # Lab IPFS Node
+  # ============================================================================
+  ipfs-lab:
+    container_name: ipfs-lab
+    image: ipfs/kubo:v0.25.0
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/data/ipfs
+    ports:
+      - "4001:4001"      # Swarm
+      - "5001:5001"      # API
+      - "8080:8080"      # Gateway
+    volumes:
+      - ipfs-lab:/data/ipfs
+      - ./scripts/ipfs-init-lab.sh:/container-init.d/001-init.sh:ro
+    networks:
+      - dfir-ipfs
+    restart: unless-stopped
+
+  ipfs-cluster-lab:
+    container_name: ipfs-cluster-lab
+    image: ipfs/ipfs-cluster:v1.0.8
+    depends_on:
+      - ipfs-lab
+    environment:
+      - CLUSTER_PEERNAME=lab-cluster
+      - CLUSTER_SECRET=${CLUSTER_SECRET}
+      - CLUSTER_IPFSHTTP_NODEMULTIADDRESS=/dns4/ipfs-lab/tcp/5001
+      - CLUSTER_CRDT_TRUSTEDPEERS=*
+      - CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS=/ip4/0.0.0.0/tcp/9094
+      - CLUSTER_MONITORPINGINTERVAL=2s
+    ports:
+      - "9094:9094"      # REST API
+      - "9095:9095"      # Cluster Swarm
+    volumes:
+      - ipfs-cluster-lab:/data/ipfs-cluster
+    networks:
+      - dfir-ipfs
+    restart: unless-stopped
+
+  # ============================================================================
+  # Court IPFS Node
+  # ============================================================================
+  ipfs-court:
+    container_name: ipfs-court
+    image: ipfs/kubo:v0.25.0
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/data/ipfs
+    ports:
+      - "4011:4001"
+      - "5011:5001"
+      - "8081:8080"
+    volumes:
+      - ipfs-court:/data/ipfs
+      - ./scripts/ipfs-init-court.sh:/container-init.d/001-init.sh:ro
+    networks:
+      - dfir-ipfs
+    restart: unless-stopped
+
+  ipfs-cluster-court:
+    container_name: ipfs-cluster-court
+    image: ipfs/ipfs-cluster:v1.0.8
+    depends_on:
+      - ipfs-court
+    environment:
+      - CLUSTER_PEERNAME=court-cluster
+      - CLUSTER_SECRET=${CLUSTER_SECRET}
+      - CLUSTER_IPFSHTTP_NODEMULTIADDRESS=/dns4/ipfs-court/tcp/5001
+      - CLUSTER_CRDT_TRUSTEDPEERS=*
+      - CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS=/ip4/0.0.0.0/tcp/9094
+      - CLUSTER_MONITORPINGINTERVAL=2s
+    ports:
+      - "9096:9094"
+      - "9097:9095"
+    volumes:
+      - ipfs-cluster-court:/data/ipfs-cluster
+    networks:
+      - dfir-ipfs
+    restart: unless-stopped
+
+  # ============================================================================
+  # Redundant IPFS Node
+  # ============================================================================
+  ipfs-redundant:
+    container_name: ipfs-redundant
+    image: ipfs/kubo:v0.25.0
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/data/ipfs
+    ports:
+      - "4021:4001"
+      - "5021:5001"
+      - "8082:8080"
+    volumes:
+      - ipfs-redundant:/data/ipfs
+      - ./scripts/ipfs-init-redundant.sh:/container-init.d/001-init.sh:ro
+    networks:
+      - dfir-ipfs
+    restart: unless-stopped
+
+  ipfs-cluster-redundant:
+    container_name: ipfs-cluster-redundant
+    image: ipfs/ipfs-cluster:v1.0.8
+    depends_on:
+      - ipfs-redundant
+    environment:
+      - CLUSTER_PEERNAME=redundant-cluster
+      - CLUSTER_SECRET=${CLUSTER_SECRET}
+      - CLUSTER_IPFSHTTP_NODEMULTIADDRESS=/dns4/ipfs-redundant/tcp/5001
+      - CLUSTER_CRDT_TRUSTEDPEERS=*
+      - CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS=/ip4/0.0.0.0/tcp/9094
+      - CLUSTER_MONITORPINGINTERVAL=2s
+    ports:
+      - "9098:9094"
+      - "9099:9095"
+    volumes:
+      - ipfs-cluster-redundant:/data/ipfs-cluster
+    networks:
+      - dfir-ipfs
+    restart: unless-stopped
+
+  # ============================================================================
+  # Replica IPFS Node
+  # ============================================================================
+  ipfs-replica:
+    container_name: ipfs-replica
+    image: ipfs/kubo:v0.25.0
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/data/ipfs
+    ports:
+      - "4031:4001"
+      - "5031:5001"
+      - "8083:8080"
+    volumes:
+      - ipfs-replica:/data/ipfs
+      - ./scripts/ipfs-init-replica.sh:/container-init.d/001-init.sh:ro
+    networks:
+      - dfir-ipfs
+    restart: unless-stopped
+
+  ipfs-cluster-replica:
+    container_name: ipfs-cluster-replica
+    image: ipfs/ipfs-cluster:v1.0.8
+    depends_on:
+      - ipfs-replica
+    environment:
+      - CLUSTER_PEERNAME=replica-cluster
+      - CLUSTER_SECRET=${CLUSTER_SECRET}
+      - CLUSTER_IPFSHTTP_NODEMULTIADDRESS=/dns4/ipfs-replica/tcp/5001
+      - CLUSTER_CRDT_TRUSTEDPEERS=*
+      - CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS=/ip4/0.0.0.0/tcp/9094
+      - CLUSTER_MONITORPINGINTERVAL=2s
+    ports:
+      - "9100:9094"
+      - "9101:9095"
+    volumes:
+      - ipfs-cluster-replica:/data/ipfs-cluster
+    networks:
+      - dfir-ipfs
+    restart: unless-stopped

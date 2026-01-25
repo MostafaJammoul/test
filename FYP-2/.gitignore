@@ -1,0 +1,101 @@
+# Fabric crypto materials and generated artifacts
+fabric-network/*/crypto-config/
+fabric-network/*/channel-artifacts/*.block
+fabric-network/*/channel-artifacts/*.tx
+fabric-network/*/channel-artifacts/*.json
+
+# Fabric binary downloads
+fabric-network/bin/
+fabric-network/config/
+
+# Docker volumes and logs
+*.log
+logs/
+
+# Chaincode builds
+chaincode/*/vendor/
+chaincode/*/*.tar.gz
+chaincode/*/go.sum
+
+# Node.js dependencies
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# IPFS data
+ipfs/data/
+ipfs/repo/
+.ipfs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+
+# Testing
+coverage/
+*.coverage
+.nyc_output/
+test-results/
+
+# Build outputs
+dist/
+build/
+*.zip
+*.tar.gz
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# SGX private keys and attestation secrets
+chaincode/private-sgx/enclave_keys/
+chaincode/private-sgx/attestation/
+*.sealed
+
+# JumpServer secrets
+jumpserver/config/*.secret
+jumpserver/config/mfa-keys/
+jumpserver/config/certs/private/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# OS files
+Thumbs.db
+.DS_Store

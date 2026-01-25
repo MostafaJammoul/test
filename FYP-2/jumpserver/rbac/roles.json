@@ -1,0 +1,73 @@
+{
+  "roles": {
+    "Investigator": {
+      "description": "Forensic investigators who collect and handle digital evidence",
+      "permissions": [
+        "evidence:create",
+        "evidence:read",
+        "evidence:transfer",
+        "ipfs:add",
+        "ipfs:get"
+      ],
+      "orgMSP": "ForensicLabMSP"
+    },
+    "LabAnalyst": {
+      "description": "Lab analysts who analyze evidence and prepare reports",
+      "permissions": [
+        "evidence:read",
+        "evidence:transfer",
+        "evidence:archive",
+        "evidence:reactivate",
+        "ipfs:get"
+      ],
+      "orgMSP": "ForensicLabMSP"
+    },
+    "CourtUser": {
+      "description": "Court personnel who access evidence for legal proceedings",
+      "permissions": [
+        "evidence:read",
+        "evidence:verify",
+        "ipfs:get"
+      ],
+      "orgMSP": "CourtMSP"
+    },
+    "Auditor": {
+      "description": "Auditors who verify chain of custody and compliance",
+      "permissions": [
+        "evidence:read",
+        "evidence:audit",
+        "evidence:verify",
+        "custody:query",
+        "ipfs:get"
+      ],
+      "orgMSP": ["ForensicLabMSP", "CourtMSP"]
+    },
+    "Admin": {
+      "description": "System administrators with full access",
+      "permissions": [
+        "evidence:*",
+        "ipfs:*",
+        "custody:*",
+        "system:manage",
+        "evidence:invalidate"
+      ],
+      "orgMSP": ["ForensicLabMSP", "CourtMSP"]
+    }
+  },
+  "permissions": {
+    "evidence:create": "Create new evidence records",
+    "evidence:read": "Read evidence information",
+    "evidence:transfer": "Transfer custody of evidence",
+    "evidence:archive": "Archive evidence to cold chain",
+    "evidence:reactivate": "Reactivate archived evidence",
+    "evidence:verify": "Verify evidence integrity",
+    "evidence:audit": "Audit evidence and custody chain",
+    "evidence:invalidate": "Invalidate evidence (admin only)",
+    "ipfs:add": "Add files to IPFS cluster",
+    "ipfs:get": "Retrieve files from IPFS cluster",
+    "ipfs:pin": "Pin files in IPFS cluster",
+    "ipfs:unpin": "Unpin files from IPFS cluster",
+    "custody:query": "Query custody chain history",
+    "system:manage": "Manage system configuration"
+  }
+}

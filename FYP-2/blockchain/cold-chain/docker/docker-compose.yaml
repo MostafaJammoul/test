@@ -1,0 +1,302 @@
+# Docker Compose for Cold Chain
+# Network: cold_network
+# Components: 3 RAFT Orderers, 2 Peers (ForensicLab, Court), CouchDB
+
+networks:
+  cold_network:
+    name: cold_network
+
+volumes:
+  orderer.cold.coc.com:
+  orderer2.cold.coc.com:
+  orderer3.cold.coc.com:
+  peer0.forensiclab.cold.coc.com:
+  peer0.court.cold.coc.com:
+  couchdb.forensiclab.cold:
+  couchdb.court.cold:
+
+services:
+  # ============= ORDERER NODES =============
+  orderer.cold.coc.com:
+    container_name: orderer.cold.coc.com
+    image: hyperledger/fabric-orderer:3.0
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=8050
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=none
+      - ORDERER_CHANNELPARTICIPATION_ENABLED=true
+      - ORDERER_ADMIN_TLS_ENABLED=true
+      - ORDERER_ADMIN_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_ADMIN_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_ADMIN_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_LISTENADDRESS=0.0.0.0:8053
+      - ORDERER_OPERATIONS_LISTENADDRESS=orderer.cold.coc.com:9543
+      - ORDERER_METRICS_PROVIDER=prometheus
+    working_dir: /root
+    command: orderer
+    volumes:
+      - ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer.cold.coc.com/msp:/var/hyperledger/orderer/msp
+      - ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer.cold.coc.com/tls:/var/hyperledger/orderer/tls
+      - orderer.cold.coc.com:/var/hyperledger/production/orderer
+    ports:
+      - 8050:8050
+      - 8053:8053
+      - 9543:9543
+    networks:
+      - cold_network
+
+  orderer2.cold.coc.com:
+    container_name: orderer2.cold.coc.com
+    image: hyperledger/fabric-orderer:3.0
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=8052
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=none
+      - ORDERER_CHANNELPARTICIPATION_ENABLED=true
+      - ORDERER_ADMIN_TLS_ENABLED=true
+      - ORDERER_ADMIN_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_ADMIN_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_ADMIN_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_LISTENADDRESS=0.0.0.0:8055
+      - ORDERER_OPERATIONS_LISTENADDRESS=orderer2.cold.coc.com:9544
+      - ORDERER_METRICS_PROVIDER=prometheus
+    working_dir: /root
+    command: orderer
+    volumes:
+      - ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer2.cold.coc.com/msp:/var/hyperledger/orderer/msp
+      - ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer2.cold.coc.com/tls:/var/hyperledger/orderer/tls
+      - orderer2.cold.coc.com:/var/hyperledger/production/orderer
+    ports:
+      - 8055:8055
+      - 9544:9544
+    networks:
+      - cold_network
+
+  orderer3.cold.coc.com:
+    container_name: orderer3.cold.coc.com
+    image: hyperledger/fabric-orderer:3.0
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=8054
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=none
+      - ORDERER_CHANNELPARTICIPATION_ENABLED=true
+      - ORDERER_ADMIN_TLS_ENABLED=true
+      - ORDERER_ADMIN_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_ADMIN_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_ADMIN_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_LISTENADDRESS=0.0.0.0:8057
+      - ORDERER_OPERATIONS_LISTENADDRESS=orderer3.cold.coc.com:9545
+      - ORDERER_METRICS_PROVIDER=prometheus
+    working_dir: /root
+    command: orderer
+    volumes:
+      - ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer3.cold.coc.com/msp:/var/hyperledger/orderer/msp
+      - ../crypto-config/ordererOrganizations/cold.coc.com/orderers/orderer3.cold.coc.com/tls:/var/hyperledger/orderer/tls
+      - orderer3.cold.coc.com:/var/hyperledger/production/orderer
+    ports:
+      - 8054:8054
+      - 8057:8057
+      - 9545:9545
+    networks:
+      - cold_network
+
+  # ============= CouchDB for ForensicLab =============
+  couchdb.forensiclab.cold:
+    container_name: couchdb.forensiclab.cold
+    image: couchdb:3.3.3
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    volumes:
+      - couchdb.forensiclab.cold:/opt/couchdb/data
+    ports:
+      - 7984:5984
+    networks:
+      - cold_network
+
+  # ============= CouchDB for Court =============
+  couchdb.court.cold:
+    container_name: couchdb.court.cold
+    image: couchdb:3.3.3
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    volumes:
+      - couchdb.court.cold:/opt/couchdb/data
+    ports:
+      - 8984:5984
+    networks:
+      - cold_network
+
+  # ============= PEER NODES =============
+  peer0.forensiclab.cold.coc.com:
+    container_name: peer0.forensiclab.cold.coc.com
+    image: hyperledger/fabric-peer:3.0
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=false
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_ID=peer0.forensiclab.cold.coc.com
+      - CORE_PEER_ADDRESS=peer0.forensiclab.cold.coc.com:10051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:10051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.forensiclab.cold.coc.com:10052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:10052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.forensiclab.cold.coc.com:10051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.forensiclab.cold.coc.com:10051
+      - CORE_PEER_LOCALMSPID=ForensicLabMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_OPERATIONS_LISTENADDRESS=peer0.forensiclab.cold.coc.com:9546
+      - CORE_METRICS_PROVIDER=prometheus
+      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0forensiclabcold"}
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      - CORE_VM_ENDPOINT=unix:///var/run/docker.sock
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=cold_network
+      # CouchDB Settings
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.forensiclab.cold:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../crypto-config/peerOrganizations/forensiclab.cold.coc.com/peers/peer0.forensiclab.cold.coc.com:/etc/hyperledger/fabric
+      - peer0.forensiclab.cold.coc.com:/var/hyperledger/production
+      - ../config/peercfg:/etc/hyperledger/peercfg
+    working_dir: /root
+    command: peer node start
+    ports:
+      - 10051:10051
+      - 9546:9546
+    depends_on:
+      - couchdb.forensiclab.cold
+    networks:
+      - cold_network
+
+  peer0.court.cold.coc.com:
+    container_name: peer0.court.cold.coc.com
+    image: hyperledger/fabric-peer:3.0
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=false
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_ID=peer0.court.cold.coc.com
+      - CORE_PEER_ADDRESS=peer0.court.cold.coc.com:9051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:9051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.court.cold.coc.com:9052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:9052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.court.cold.coc.com:9051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.court.cold.coc.com:9051
+      - CORE_PEER_LOCALMSPID=CourtMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_OPERATIONS_LISTENADDRESS=peer0.court.cold.coc.com:9547
+      - CORE_METRICS_PROVIDER=prometheus
+      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0courtcold"}
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      - CORE_VM_ENDPOINT=unix:///var/run/docker.sock
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=cold_network
+      # CouchDB Settings
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.court.cold:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../crypto-config/peerOrganizations/court.cold.coc.com/peers/peer0.court.cold.coc.com:/etc/hyperledger/fabric
+      - peer0.court.cold.coc.com:/var/hyperledger/production
+      - ../config/peercfg:/etc/hyperledger/peercfg
+    working_dir: /root
+    command: peer node start
+    ports:
+      - 9051:9051
+      - 9547:9547
+    depends_on:
+      - couchdb.court.cold
+    networks:
+      - cold_network
+
+  # ============= CLI Tool =============
+  cli.cold:
+    container_name: cli.cold
+    image: hyperledger/fabric-tools:2.5
+    labels:
+      service: hyperledger-fabric
+    tty: true
+    stdin_open: true
+    environment:
+      - GOPATH=/opt/gopath
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_VM_ENDPOINT=unix:///var/run/docker.sock
+      - CORE_PEER_ID=cli.cold
+      - CORE_PEER_ADDRESS=peer0.forensiclab.cold.coc.com:10051
+      - CORE_PEER_LOCALMSPID=ForensicLabMSP
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/forensiclab.cold.coc.com/peers/peer0.forensiclab.cold.coc.com/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/forensiclab.cold.coc.com/peers/peer0.forensiclab.cold.coc.com/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/forensiclab.cold.coc.com/peers/peer0.forensiclab.cold.coc.com/tls/ca.crt
+      - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/forensiclab.cold.coc.com/users/Admin@forensiclab.cold.coc.com/msp
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: /bin/bash
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto
+      - ../channel-artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
+      - ../../chaincode:/opt/gopath/src/github.com/hyperledger/fabric/peer/chaincode
+    depends_on:
+      - peer0.forensiclab.cold.coc.com
+      - peer0.court.cold.coc.com
+    networks:
+      - cold_network

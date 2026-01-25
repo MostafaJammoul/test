@@ -1,0 +1,65 @@
+{
+    "name": "hot-chain-network",
+    "version": "1.0.0",
+    "client": {
+        "tlsEnable": true,
+        "adminCredential": {
+            "id": "exploreradmin",
+            "password": "exploreradminpw"
+        },
+        "enableAuthentication": true,
+        "organization": "ForensicLabMSP",
+        "connection": {
+            "timeout": {
+                "peer": {
+                    "endorser": "300"
+                },
+                "orderer": "300"
+            }
+        }
+    },
+    "channels": {
+        "hotchannel": {
+            "peers": {
+                "peer0.forensiclab.hot.coc.com": {},
+                "peer0.court.hot.coc.com": {}
+            }
+        }
+    },
+    "organizations": {
+        "ForensicLabMSP": {
+            "mspid": "ForensicLabMSP",
+            "adminPrivateKey": {
+                "path": "/tmp/crypto/peerOrganizations/forensiclab.hot.coc.com/users/Admin@forensiclab.hot.coc.com/msp/keystore/priv_sk"
+            },
+            "peers": ["peer0.forensiclab.hot.coc.com"],
+            "signedCert": {
+                "path": "/tmp/crypto/peerOrganizations/forensiclab.hot.coc.com/users/Admin@forensiclab.hot.coc.com/msp/signcerts/Admin@forensiclab.hot.coc.com-cert.pem"
+            }
+        },
+        "CourtMSP": {
+            "mspid": "CourtMSP",
+            "peers": ["peer0.court.hot.coc.com"]
+        }
+    },
+    "peers": {
+        "peer0.forensiclab.hot.coc.com": {
+            "url": "grpcs://peer0.forensiclab.hot.coc.com:8051",
+            "tlsCACerts": {
+                "path": "/tmp/crypto/peerOrganizations/forensiclab.hot.coc.com/peers/peer0.forensiclab.hot.coc.com/tls/ca.crt"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.forensiclab.hot.coc.com"
+            }
+        },
+        "peer0.court.hot.coc.com": {
+            "url": "grpcs://peer0.court.hot.coc.com:7051",
+            "tlsCACerts": {
+                "path": "/tmp/crypto/peerOrganizations/court.hot.coc.com/peers/peer0.court.hot.coc.com/tls/ca.crt"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.court.hot.coc.com"
+            }
+        }
+    }
+}

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chain of Custody - Blockchain Monitor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 30px; color: #00d9ff; }
+        .chains { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .chain { background: #16213e; border-radius: 10px; padding: 20px; }
+        .chain h2 { color: #00d9ff; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #0f3460; }
+        .chain.hot h2 { color: #ff6b6b; border-color: #ff6b6b; }
+        .chain.cold h2 { color: #4ecdc4; border-color: #4ecdc4; }
+        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat { background: #0f3460; padding: 15px; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #00d9ff; }
+        .stat-label { font-size: 12px; color: #888; margin-top: 5px; }
+        .orgs { margin-bottom: 20px; }
+        .org { background: #0f3460; padding: 10px 15px; border-radius: 5px; margin-bottom: 10px; }
+        .org-name { font-weight: bold; color: #00d9ff; }
+        .org-peer { color: #888; font-size: 12px; }
+        .blocks { max-height: 400px; overflow-y: auto; }
+        .block { background: #0f3460; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #00d9ff; }
+        .block-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .block-num { font-size: 18px; font-weight: bold; color: #00d9ff; }
+        .block-txs { color: #888; }
+        .block-hash { font-family: monospace; font-size: 11px; color: #666; word-break: break-all; background: #0a1628; padding: 8px; border-radius: 4px; margin-top: 10px; }
+        .refresh-btn { background: #00d9ff; color: #000; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin: 20px auto; display: block; }
+        .refresh-btn:hover { background: #00b4d8; }
+        .status { text-align: center; padding: 10px; background: #0f3460; border-radius: 5px; margin-bottom: 20px; }
+        .status.online { border-left: 4px solid #4ecdc4; }
+        .timestamp { text-align: center; color: #666; margin-top: 20px; font-size: 12px; }
+        #loading { display: none; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Digital Forensics Chain of Custody - Blockchain Monitor</h1>
+
+        <div class="status online">
+            <strong>Status:</strong> Both chains operational | Last refresh: <span id="lastRefresh">-</span>
+        </div>
+
+        <button class="refresh-btn" onclick="refreshData()">🔄 Refresh Data</button>
+        <div id="loading">Loading...</div>
+
+        <div class="chains">
+            <div class="chain hot">
+                <h2>🔥 HOT CHAIN (Active Cases)</h2>
+                <div class="stat-grid">
+                    <div class="stat">
+                        <div class="stat-value" id="hot-blocks">-</div>
+                        <div class="stat-label">BLOCKS</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="hot-txs">-</div>
+                        <div class="stat-label">TRANSACTIONS</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="hot-channel">hotchannel</div>
+                        <div class="stat-label">CHANNEL</div>
+                    </div>
+                </div>
+                <div class="orgs">
+                    <h3 style="color:#ff6b6b;margin-bottom:10px;">Organizations</h3>
+                    <div class="org">
+                        <div class="org-name">ForensicLabMSP</div>
+                        <div class="org-peer">peer0.forensiclab.hot.coc.com:8051</div>
+                    </div>
+                    <div class="org">
+                        <div class="org-name">CourtMSP</div>
+                        <div class="org-peer">peer0.court.hot.coc.com:7051</div>
+                    </div>
+                </div>
+                <h3 style="color:#ff6b6b;margin-bottom:10px;">Recent Blocks</h3>
+                <div class="blocks" id="hot-blocks-list">
+                    <!-- Blocks will be populated here -->
+                </div>
+            </div>
+
+            <div class="chain cold">
+                <h2>❄️ COLD CHAIN (Archived Cases)</h2>
+                <div class="stat-grid">
+                    <div class="stat">
+                        <div class="stat-value" id="cold-blocks">-</div>
+                        <div class="stat-label">BLOCKS</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="cold-txs">-</div>
+                        <div class="stat-label">TRANSACTIONS</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="cold-channel">coldchannel</div>
+                        <div class="stat-label">CHANNEL</div>
+                    </div>
+                </div>
+                <div class="orgs">
+                    <h3 style="color:#4ecdc4;margin-bottom:10px;">Organizations</h3>
+                    <div class="org">
+                        <div class="org-name">ForensicLabMSP</div>
+                        <div class="org-peer">peer0.forensiclab.cold.coc.com:10051</div>
+                    </div>
+                    <div class="org">
+                        <div class="org-name">CourtMSP</div>
+                        <div class="org-peer">peer0.court.cold.coc.com:9051</div>
+                    </div>
+                </div>
+                <h3 style="color:#4ecdc4;margin-bottom:10px;">Recent Blocks</h3>
+                <div class="blocks" id="cold-blocks-list">
+                    <!-- Blocks will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="timestamp">
+            Digital Forensics Chain of Custody System - American University of Beirut FYP
+        </div>
+    </div>
+
+    <script>
+        // This page displays blockchain data that needs to be fetched from the backend
+        // The data below is sample data - in production, this would be fetched via API
+
+        function refreshData() {
+            document.getElementById('lastRefresh').textContent = new Date().toLocaleString();
+            document.getElementById('loading').style.display = 'block';
+
+            // In production, this would fetch from an API
+            // For now, displaying instructions for manual refresh
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                alert('To get live data, run the refresh script:\\n\\ncd /home/kali/FYP-2/blockchain/explorer\\n./refresh-monitor.sh');
+            }, 500);
+        }
+
+        // Initial load
+        document.getElementById('lastRefresh').textContent = new Date().toLocaleString();
+    </script>
+</body>
+</html>

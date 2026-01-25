@@ -1,0 +1,244 @@
+# Configuration for Cold Chain (Archived Evidence)
+# Defines network structure, organizations, orderer, and channel profiles
+# Note: Cold chain is append-only with restricted modification policies
+
+---
+################################################################################
+#
+#   Section: Organizations
+#
+#   - This section defines the different organizational identities
+#
+################################################################################
+Organizations:
+  # OrdererOrg defines the organization managing the orderer nodes
+  - &OrdererOrg
+      Name: OrdererOrg
+      ID: OrdererMSP
+      MSPDir: ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/msp
+
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('OrdererMSP.member')"
+        Writers:
+          Type: Signature
+          Rule: "OR('OrdererMSP.member')"
+        Admins:
+          Type: Signature
+          Rule: "OR('OrdererMSP.admin')"
+
+  # ForensicLabMSP - Forensic Laboratory Organization
+  - &ForensicLabMSP
+      Name: ForensicLabMSP
+      ID: ForensicLabMSP
+      MSPDir: ../crypto-config/peerOrganizations/lab.cold.dfir.local/msp
+
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('ForensicLabMSP.admin', 'ForensicLabMSP.peer', 'ForensicLabMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('ForensicLabMSP.admin', 'ForensicLabMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('ForensicLabMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('ForensicLabMSP.peer')"
+
+      AnchorPeers:
+        - Host: peer0.lab.cold.dfir.local
+          Port: 9051
+
+  # CourtMSP - Court Organization
+  - &CourtMSP
+      Name: CourtMSP
+      ID: CourtMSP
+      MSPDir: ../crypto-config/peerOrganizations/court.cold.dfir.local/msp
+
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('CourtMSP.admin', 'CourtMSP.peer', 'CourtMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('CourtMSP.admin', 'CourtMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('CourtMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('CourtMSP.peer')"
+
+      AnchorPeers:
+        - Host: peer0.court.cold.dfir.local
+          Port: 10051
+
+################################################################################
+#
+#   SECTION: Capabilities
+#
+#   - This section defines the capabilities of the network
+#
+################################################################################
+Capabilities:
+  Channel: &ChannelCapabilities
+    V3_0: true
+
+  Orderer: &OrdererCapabilities
+    V3_0: true
+
+  Application: &ApplicationCapabilities
+    V3_0: true
+
+################################################################################
+#
+#   SECTION: Application
+#
+#   - This section defines the values to encode into application config
+#
+################################################################################
+Application: &ApplicationDefaults
+  Organizations:
+
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    # Stricter endorsement for cold chain (append-only)
+    LifecycleEndorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+    Endorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+
+  Capabilities:
+    <<: *ApplicationCapabilities
+
+################################################################################
+#
+#   SECTION: Orderer
+#
+#   - This section defines the RAFT orderer configuration
+#
+################################################################################
+Orderer: &OrdererDefaults
+  OrdererType: etcdraft
+
+  Addresses:
+    - orderer0.orderer.cold.dfir.local:8050
+    - orderer1.orderer.cold.dfir.local:8051
+    - orderer2.orderer.cold.dfir.local:8052
+
+  EtcdRaft:
+    Consenters:
+      - Host: orderer0.orderer.cold.dfir.local
+        Port: 8050
+        ClientTLSCert: ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer0.orderer.cold.dfir.local/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer0.orderer.cold.dfir.local/tls/server.crt
+      - Host: orderer1.orderer.cold.dfir.local
+        Port: 8051
+        ClientTLSCert: ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer1.orderer.cold.dfir.local/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer1.orderer.cold.dfir.local/tls/server.crt
+      - Host: orderer2.orderer.cold.dfir.local
+        Port: 8052
+        ClientTLSCert: ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer2.orderer.cold.dfir.local/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer2.orderer.cold.dfir.local/tls/server.crt
+
+    Options:
+      TickInterval: 500ms
+      ElectionTick: 10
+      HeartbeatTick: 1
+      MaxInflightBlocks: 5
+      SnapshotIntervalSize: 16 MB
+
+  BatchTimeout: 2s
+  BatchSize:
+    MaxMessageCount: 500
+    AbsoluteMaxBytes: 10 MB
+    PreferredMaxBytes: 2 MB
+
+  Organizations:
+
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    BlockValidation:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+
+  Capabilities:
+    <<: *OrdererCapabilities
+
+################################################################################
+#
+#   CHANNEL
+#
+#   This section defines the channel configuration
+#
+################################################################################
+Channel: &ChannelDefaults
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+
+  Capabilities:
+    <<: *ChannelCapabilities
+
+################################################################################
+#
+#   Profile
+#
+#   - Different profiles encode different network structures
+#
+################################################################################
+Profiles:
+  # ColdChainOrdererGenesis - Genesis block for cold chain orderer
+  ColdChainOrdererGenesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Organizations:
+        - *OrdererOrg
+      Capabilities:
+        <<: *OrdererCapabilities
+    Consortiums:
+      DFIRConsortium:
+        Organizations:
+          - *ForensicLabMSP
+          - *CourtMSP
+
+  # EvidenceColdChannel - Application channel for archived evidence
+  EvidenceColdChannel:
+    Consortium: DFIRConsortium
+    <<: *ChannelDefaults
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *ForensicLabMSP
+        - *CourtMSP
+      Capabilities:
+        <<: *ApplicationCapabilities

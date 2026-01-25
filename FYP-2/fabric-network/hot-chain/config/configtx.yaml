@@ -1,0 +1,247 @@
+# Configuration for Hot Chain (Active Investigations)
+# Defines network structure, organizations, orderer, and channel profiles
+
+---
+################################################################################
+#
+#   Section: Organizations
+#
+#   - This section defines the different organizational identities
+#
+################################################################################
+Organizations:
+  # OrdererOrg defines the organization managing the orderer nodes
+  - &OrdererOrg
+      Name: OrdererOrg
+      ID: OrdererMSP
+      MSPDir: ../crypto-config/ordererOrganizations/orderer.hot.dfir.local/msp
+
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('OrdererMSP.member')"
+        Writers:
+          Type: Signature
+          Rule: "OR('OrdererMSP.member')"
+        Admins:
+          Type: Signature
+          Rule: "OR('OrdererMSP.admin')"
+
+  # ForensicLabMSP - Forensic Laboratory Organization
+  - &ForensicLabMSP
+      Name: ForensicLabMSP
+      ID: ForensicLabMSP
+      MSPDir: ../crypto-config/peerOrganizations/lab.hot.dfir.local/msp
+
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('ForensicLabMSP.admin', 'ForensicLabMSP.peer', 'ForensicLabMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('ForensicLabMSP.admin', 'ForensicLabMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('ForensicLabMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('ForensicLabMSP.peer')"
+
+      AnchorPeers:
+        - Host: peer0.lab.hot.dfir.local
+          Port: 7051
+
+  # CourtMSP - Court Organization
+  - &CourtMSP
+      Name: CourtMSP
+      ID: CourtMSP
+      MSPDir: ../crypto-config/peerOrganizations/court.hot.dfir.local/msp
+
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('CourtMSP.admin', 'CourtMSP.peer', 'CourtMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('CourtMSP.admin', 'CourtMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('CourtMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('CourtMSP.peer')"
+
+      AnchorPeers:
+        - Host: peer0.court.hot.dfir.local
+          Port: 8051
+
+################################################################################
+#
+#   SECTION: Capabilities
+#
+#   - This section defines the capabilities of the network
+#
+################################################################################
+Capabilities:
+  Channel: &ChannelCapabilities
+    V3_0: true
+
+  Orderer: &OrdererCapabilities
+    V3_0: true
+
+  Application: &ApplicationCapabilities
+    V3_0: true
+
+################################################################################
+#
+#   SECTION: Application
+#
+#   - This section defines the values to encode into application config
+#
+################################################################################
+Application: &ApplicationDefaults
+  Organizations:
+
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    # Endorsement requires only ForensicLabMSP - CourtMSP participates for
+    # data replication/visibility only (maintains local copy, no endorsement required)
+    LifecycleEndorsement:
+      Type: Signature
+      Rule: "OR('ForensicLabMSP.peer')"
+    Endorsement:
+      Type: Signature
+      Rule: "OR('ForensicLabMSP.peer')"
+
+  Capabilities:
+    <<: *ApplicationCapabilities
+
+################################################################################
+#
+#   SECTION: Orderer
+#
+#   - This section defines the RAFT orderer configuration
+#
+################################################################################
+Orderer: &OrdererDefaults
+  OrdererType: etcdraft
+
+  Addresses:
+    - orderer0.orderer.hot.dfir.local:7050
+    - orderer1.orderer.hot.dfir.local:7051
+    - orderer2.orderer.hot.dfir.local:7052
+
+  EtcdRaft:
+    Consenters:
+      - Host: orderer0.orderer.hot.dfir.local
+        Port: 7050
+        ClientTLSCert: ../crypto-config/ordererOrganizations/orderer.hot.dfir.local/orderers/orderer0.orderer.hot.dfir.local/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/orderer.hot.dfir.local/orderers/orderer0.orderer.hot.dfir.local/tls/server.crt
+      - Host: orderer1.orderer.hot.dfir.local
+        Port: 7051
+        ClientTLSCert: ../crypto-config/ordererOrganizations/orderer.hot.dfir.local/orderers/orderer1.orderer.hot.dfir.local/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/orderer.hot.dfir.local/orderers/orderer1.orderer.hot.dfir.local/tls/server.crt
+      - Host: orderer2.orderer.hot.dfir.local
+        Port: 7052
+        ClientTLSCert: ../crypto-config/ordererOrganizations/orderer.hot.dfir.local/orderers/orderer2.orderer.hot.dfir.local/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/orderer.hot.dfir.local/orderers/orderer2.orderer.hot.dfir.local/tls/server.crt
+
+    Options:
+      TickInterval: 500ms
+      ElectionTick: 10
+      HeartbeatTick: 1
+      MaxInflightBlocks: 5
+      SnapshotIntervalSize: 16 MB
+
+  BatchTimeout: 2s
+  BatchSize:
+    MaxMessageCount: 500
+    AbsoluteMaxBytes: 10 MB
+    PreferredMaxBytes: 2 MB
+
+  Organizations:
+
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    BlockValidation:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+
+  Capabilities:
+    <<: *OrdererCapabilities
+
+################################################################################
+#
+#   CHANNEL
+#
+#   This section defines the channel configuration
+#
+################################################################################
+Channel: &ChannelDefaults
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+
+  Capabilities:
+    <<: *ChannelCapabilities
+
+################################################################################
+#
+#   Profile
+#
+#   - Different profiles encode different network structures
+#
+################################################################################
+Profiles:
+  # HotChainOrdererGenesis - Genesis block for hot chain orderer
+  HotChainOrdererGenesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Organizations:
+        - *OrdererOrg
+      Capabilities:
+        <<: *OrdererCapabilities
+    Consortiums:
+      DFIRConsortium:
+        Organizations:
+          - *ForensicLabMSP
+          - *CourtMSP
+
+  # EvidenceHotChannel - Application channel for active investigations
+  # Note: CourtMSP joins for read-only visibility (local ledger copy) but is NOT
+  # required for transaction endorsement. Only ForensicLabMSP endorsement is needed.
+  # This allows investigators to operate independently without Court availability.
+  EvidenceHotChannel:
+    Consortium: DFIRConsortium
+    <<: *ChannelDefaults
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *ForensicLabMSP
+        - *CourtMSP  # Read-only participant - receives blocks but not in endorsement policy
+      Capabilities:
+        <<: *ApplicationCapabilities

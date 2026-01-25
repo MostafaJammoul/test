@@ -1,0 +1,167 @@
+# Docker Compose configuration for Cold Chain RAFT Orderers
+# 3-node RAFT cluster for deterministic finality
+
+version: '3.7'
+
+volumes:
+  orderer0.orderer.cold.dfir.local:
+  orderer1.orderer.cold.dfir.local:
+  orderer2.orderer.cold.dfir.local:
+
+networks:
+  dfir-cold:
+    name: dfir-cold-network
+
+services:
+  orderer0.orderer.cold.dfir.local:
+    container_name: orderer0.orderer.cold.dfir.local
+    image: hyperledger/fabric-orderer:3.0.0
+    environment:
+      # General Configuration
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=8050
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+
+      # TLS Configuration
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_TLS_CLIENTAUTHREQUIRED=true
+      - ORDERER_GENERAL_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+
+      # Cluster (RAFT) Configuration
+      - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+
+      # Genesis Block
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=file
+      - ORDERER_GENERAL_BOOTSTRAPFILE=/var/hyperledger/orderer/genesis.block
+
+      # Channel Participation
+      - ORDERER_CHANNELPARTICIPATION_ENABLED=true
+
+      # File Ledger
+      - ORDERER_FILELEDGER_LOCATION=/var/hyperledger/production/orderer
+
+      # Operations and Metrics
+      - ORDERER_OPERATIONS_LISTENADDRESS=0.0.0.0:9543
+      - ORDERER_METRICS_PROVIDER=prometheus
+
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: orderer
+    volumes:
+      - ../channel-artifacts/genesis.block:/var/hyperledger/orderer/genesis.block
+      - ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer0.orderer.cold.dfir.local/msp:/var/hyperledger/orderer/msp
+      - ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer0.orderer.cold.dfir.local/tls:/var/hyperledger/orderer/tls
+      - orderer0.orderer.cold.dfir.local:/var/hyperledger/production/orderer
+    ports:
+      - 8050:8050
+      - 9543:9543
+    networks:
+      - dfir-cold
+
+  orderer1.orderer.cold.dfir.local:
+    container_name: orderer1.orderer.cold.dfir.local
+    image: hyperledger/fabric-orderer:3.0.0
+    environment:
+      # General Configuration
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=8051
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+
+      # TLS Configuration
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_TLS_CLIENTAUTHREQUIRED=true
+      - ORDERER_GENERAL_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+
+      # Cluster (RAFT) Configuration
+      - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+
+      # Genesis Block
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=file
+      - ORDERER_GENERAL_BOOTSTRAPFILE=/var/hyperledger/orderer/genesis.block
+
+      # Channel Participation
+      - ORDERER_CHANNELPARTICIPATION_ENABLED=true
+
+      # File Ledger
+      - ORDERER_FILELEDGER_LOCATION=/var/hyperledger/production/orderer
+
+      # Operations and Metrics
+      - ORDERER_OPERATIONS_LISTENADDRESS=0.0.0.0:9544
+      - ORDERER_METRICS_PROVIDER=prometheus
+
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: orderer
+    volumes:
+      - ../channel-artifacts/genesis.block:/var/hyperledger/orderer/genesis.block
+      - ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer1.orderer.cold.dfir.local/msp:/var/hyperledger/orderer/msp
+      - ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer1.orderer.cold.dfir.local/tls:/var/hyperledger/orderer/tls
+      - orderer1.orderer.cold.dfir.local:/var/hyperledger/production/orderer
+    ports:
+      - 8051:8051
+      - 9544:9544
+    networks:
+      - dfir-cold
+
+  orderer2.orderer.cold.dfir.local:
+    container_name: orderer2.orderer.cold.dfir.local
+    image: hyperledger/fabric-orderer:3.0.0
+    environment:
+      # General Configuration
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=8052
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+
+      # TLS Configuration
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_TLS_CLIENTAUTHREQUIRED=true
+      - ORDERER_GENERAL_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+
+      # Cluster (RAFT) Configuration
+      - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+
+      # Genesis Block
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=file
+      - ORDERER_GENERAL_BOOTSTRAPFILE=/var/hyperledger/orderer/genesis.block
+
+      # Channel Participation
+      - ORDERER_CHANNELPARTICIPATION_ENABLED=true
+
+      # File Ledger
+      - ORDERER_FILELEDGER_LOCATION=/var/hyperledger/production/orderer
+
+      # Operations and Metrics
+      - ORDERER_OPERATIONS_LISTENADDRESS=0.0.0.0:9545
+      - ORDERER_METRICS_PROVIDER=prometheus
+
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: orderer
+    volumes:
+      - ../channel-artifacts/genesis.block:/var/hyperledger/orderer/genesis.block
+      - ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer2.orderer.cold.dfir.local/msp:/var/hyperledger/orderer/msp
+      - ../crypto-config/ordererOrganizations/orderer.cold.dfir.local/orderers/orderer2.orderer.cold.dfir.local/tls:/var/hyperledger/orderer/tls
+      - orderer2.orderer.cold.dfir.local:/var/hyperledger/production/orderer
+    ports:
+      - 8052:8052
+      - 9545:9545
+    networks:
+      - dfir-cold

@@ -1,0 +1,65 @@
+{
+    "name": "cold-chain-network",
+    "version": "1.0.0",
+    "client": {
+        "tlsEnable": true,
+        "adminCredential": {
+            "id": "exploreradmin",
+            "password": "exploreradminpw"
+        },
+        "enableAuthentication": true,
+        "organization": "ForensicLabMSP",
+        "connection": {
+            "timeout": {
+                "peer": {
+                    "endorser": "300"
+                },
+                "orderer": "300"
+            }
+        }
+    },
+    "channels": {
+        "coldchannel": {
+            "peers": {
+                "peer0.forensiclab.cold.coc.com": {},
+                "peer0.court.cold.coc.com": {}
+            }
+        }
+    },
+    "organizations": {
+        "ForensicLabMSP": {
+            "mspid": "ForensicLabMSP",
+            "adminPrivateKey": {
+                "path": "/tmp/crypto/peerOrganizations/forensiclab.cold.coc.com/users/Admin@forensiclab.cold.coc.com/msp/keystore/priv_sk"
+            },
+            "peers": ["peer0.forensiclab.cold.coc.com"],
+            "signedCert": {
+                "path": "/tmp/crypto/peerOrganizations/forensiclab.cold.coc.com/users/Admin@forensiclab.cold.coc.com/msp/signcerts/Admin@forensiclab.cold.coc.com-cert.pem"
+            }
+        },
+        "CourtMSP": {
+            "mspid": "CourtMSP",
+            "peers": ["peer0.court.cold.coc.com"]
+        }
+    },
+    "peers": {
+        "peer0.forensiclab.cold.coc.com": {
+            "url": "grpcs://peer0.forensiclab.cold.coc.com:10051",
+            "tlsCACerts": {
+                "path": "/tmp/crypto/peerOrganizations/forensiclab.cold.coc.com/peers/peer0.forensiclab.cold.coc.com/tls/ca.crt"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.forensiclab.cold.coc.com"
+            }
+        },
+        "peer0.court.cold.coc.com": {
+            "url": "grpcs://peer0.court.cold.coc.com:9051",
+            "tlsCACerts": {
+                "path": "/tmp/crypto/peerOrganizations/court.cold.coc.com/peers/peer0.court.cold.coc.com/tls/ca.crt"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.court.cold.coc.com"
+            }
+        }
+    }
+}

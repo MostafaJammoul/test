@@ -1,0 +1,9 @@
+{
+    "network-configs": {
+        "hot-chain-network": {
+            "name": "Hot Chain Network",
+            "profile": "./connection-profile-hot.json"
+        }
+    },
+    "license": "Apache-2.0"
+}

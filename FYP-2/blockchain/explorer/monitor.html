@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="30">
+    <title>Chain of Custody - Blockchain Monitor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 30px; color: #00d9ff; }
+        .chains { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .chain { background: #16213e; border-radius: 10px; padding: 20px; }
+        .chain h2 { color: #00d9ff; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #0f3460; }
+        .chain.hot h2 { color: #ff6b6b; border-color: #ff6b6b; }
+        .chain.cold h2 { color: #4ecdc4; border-color: #4ecdc4; }
+        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat { background: #0f3460; padding: 15px; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #00d9ff; }
+        .stat-label { font-size: 12px; color: #888; margin-top: 5px; }
+        .current-hash { background: #0f3460; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .current-hash h4 { color: #888; margin-bottom: 10px; }
+        .hash-value { font-family: monospace; font-size: 12px; color: #00d9ff; word-break: break-all; }
+        .orgs { margin-bottom: 20px; }
+        .org { background: #0f3460; padding: 10px 15px; border-radius: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .org-name { font-weight: bold; color: #00d9ff; }
+        .org-peer { color: #888; font-size: 12px; }
+        .org-status { color: #4ecdc4; font-size: 12px; }
+        .blocks { max-height: 300px; overflow-y: auto; }
+        .block { background: #0f3460; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #00d9ff; }
+        .block-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .block-num { font-size: 18px; font-weight: bold; color: #00d9ff; }
+        .block-hash { font-family: monospace; font-size: 11px; color: #666; word-break: break-all; background: #0a1628; padding: 8px; border-radius: 4px; }
+        .status { text-align: center; padding: 15px; background: #0f3460; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #4ecdc4; }
+        .timestamp { text-align: center; color: #666; margin-top: 20px; font-size: 12px; }
+        .refresh-info { text-align: center; color: #888; font-size: 11px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Digital Forensics Chain of Custody - Blockchain Monitor</h1>
+
+        <div class="status">
+            <strong>Status:</strong> Both chains operational |
+            <strong>Hot Chain:</strong> 15 blocks |
+            <strong>Cold Chain:</strong> 7 blocks |
+            <strong>Last Update:</strong> 2026-01-24 12:34:08
+        </div>
+
+        <div class="chains">
+            <div class="chain hot">
+                <h2>HOT CHAIN (Active Cases)</h2>
+                <div class="stat-grid">
+                    <div class="stat">
+                        <div class="stat-value">15</div>
+                        <div class="stat-label">BLOCK HEIGHT</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">hotchannel</div>
+                        <div class="stat-label">CHANNEL</div>
+                    </div>
+                </div>
+                <div class="current-hash">
+                    <h4>Current Block Hash</h4>
+                    <div class="hash-value">xP6Xu8EShJjhFWqurH6gdy2NwQpHnv0GYQJCTQksEA8=</div>
+                </div>
+                <div class="orgs">
+                    <h3 style="color:#ff6b6b;margin-bottom:10px;">Organizations & Peers</h3>
+                    <div class="org">
+                        <div><div class="org-name">ForensicLabMSP</div><div class="org-peer">peer0.forensiclab.hot.coc.com:8051</div></div>
+                        <div class="org-status">ONLINE</div>
+                    </div>
+                    <div class="org">
+                        <div><div class="org-name">CourtMSP</div><div class="org-peer">peer0.court.hot.coc.com:7051</div></div>
+                        <div class="org-status">ONLINE</div>
+                    </div>
+                </div>
+                <h3 style="color:#ff6b6b;margin-bottom:10px;">Recent Blocks</h3>
+                <div class="blocks">
+                    <div class='block'><div class='block-header'><span class='block-num'>Block #14</span></div><div class='block-hash'>Hash: 26a8910f0446d954f0bbd0d3b5b2b771950dc7dd213987d6552b637b945605a6</div></div><div class='block'><div class='block-header'><span class='block-num'>Block #13</span></div><div class='block-hash'>Hash: 2db233660c1e885bc4a0b555977e93796f8392c18b063d7e6ad612a2864b1021</div></div><div class='block'><div class='block-header'><span class='block-num'>Block #12</span></div><div class='block-hash'>Hash: a2cb53c09590a9002b0f79846fff30ef251c4a9caac2dec86474f75179816487</div></div><div class='block'><div class='block-header'><span class='block-num'>Block #11</span></div><div class='block-hash'>Hash: 01b2ef08ceb2f1d07de98e8a4f9351601187d90ebb8b6680064d44649b757d83</div></div><div class='block'><div class='block-header'><span class='block-num'>Block #10</span></div><div class='block-hash'>Hash: 21668d2c889b9e61bd4bd5ba8777c3cf1baeb3ce9e4dfed1d13c2bcc224007d1</div></div>
+                </div>
+            </div>
+
+            <div class="chain cold">
+                <h2>COLD CHAIN (Archived Cases)</h2>
+                <div class="stat-grid">
+                    <div class="stat">
+                        <div class="stat-value">7</div>
+                        <div class="stat-label">BLOCK HEIGHT</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">coldchannel</div>
+                        <div class="stat-label">CHANNEL</div>
+                    </div>
+                </div>
+                <div class="current-hash">
+                    <h4>Current Block Hash</h4>
+                    <div class="hash-value">5xXOKGqmf4RtKTf0kABTJ82muMYd6DLIxnXrzoPoTdQ=</div>
+                </div>
+                <div class="orgs">
+                    <h3 style="color:#4ecdc4;margin-bottom:10px;">Organizations & Peers</h3>
+                    <div class="org">
+                        <div><div class="org-name">ForensicLabMSP</div><div class="org-peer">peer0.forensiclab.cold.coc.com:10051</div></div>
+                        <div class="org-status">ONLINE</div>
+                    </div>
+                    <div class="org">
+                        <div><div class="org-name">CourtMSP</div><div class="org-peer">peer0.court.cold.coc.com:9051</div></div>
+                        <div class="org-status">ONLINE</div>
+                    </div>
+                </div>
+                <h3 style="color:#4ecdc4;margin-bottom:10px;">Recent Blocks</h3>
+                <div class="blocks">
+                    <div class='block'><div class='block-header'><span class='block-num'>Block #6</span></div><div class='block-hash'>Hash: 9d88792028ba0b7dc374a467381279ed5bb87a49cbfb62c56ed6a2c66e9d6fdd</div></div><div class='block'><div class='block-header'><span class='block-num'>Block #5</span></div><div class='block-hash'>Hash: 2101f65ad3603dfa89a6c8436f5ad3607c79940a00091adb136292b1b27f4211</div></div><div class='block'><div class='block-header'><span class='block-num'>Block #4</span></div><div class='block-hash'>Hash: 6c3fa1067973053fe8c08644e375b0bfc609d6bca53a1bf6e1a53cc5906d6f5e</div></div><div class='block'><div class='block-header'><span class='block-num'>Block #3</span></div><div class='block-hash'>Hash: 02be560e9e7d997e9181ceb4bde2d495a50ae3975277cb3b4031b1e2204480a5</div></div><div class='block'><div class='block-header'><span class='block-num'>Block #2</span></div><div class='block-hash'>Hash: 889ef9a8d289543563ebfc290a82312a7e1d44cb53dfbf9588890a657c35e7cd</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="timestamp">
+            Digital Forensics Chain of Custody System - American University of Beirut FYP<br>
+            <span class="refresh-info">Page auto-refreshes every 30 seconds</span>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,296 @@
+# Docker Compose configuration for Cold Chain Peers with CouchDB
+# ForensicLabMSP: 2 peers + CouchDB instances
+# CourtMSP: 2 peers + CouchDB instances
+
+version: '3.7'
+
+volumes:
+  peer0.lab.cold.dfir.local:
+  peer1.lab.cold.dfir.local:
+  peer0.court.cold.dfir.local:
+  peer1.court.cold.dfir.local:
+  couchdb0.lab.cold.dfir.local:
+  couchdb1.lab.cold.dfir.local:
+  couchdb0.court.cold.dfir.local:
+  couchdb1.court.cold.dfir.local:
+
+networks:
+  dfir-cold:
+    name: dfir-cold-network
+
+services:
+  # ============================================================================
+  # ForensicLabMSP Peers and CouchDB
+  # ============================================================================
+
+  couchdb0.lab.cold.dfir.local:
+    container_name: couchdb0.lab.cold.dfir.local
+    image: couchdb:3.3.3
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    ports:
+      - 15984:5984
+    volumes:
+      - couchdb0.lab.cold.dfir.local:/opt/couchdb/data
+    networks:
+      - dfir-cold
+
+  peer0.lab.cold.dfir.local:
+    container_name: peer0.lab.cold.dfir.local
+    image: hyperledger/fabric-peer:3.0.0
+    environment:
+      # Peer Configuration
+      - CORE_PEER_ID=peer0.lab.cold.dfir.local
+      - CORE_PEER_ADDRESS=peer0.lab.cold.dfir.local:9051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:9051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.lab.cold.dfir.local:9052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:9052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.lab.cold.dfir.local:9053
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.lab.cold.dfir.local:9051
+      - CORE_PEER_LOCALMSPID=ForensicLabMSP
+
+      # Logging
+      - FABRIC_LOGGING_SPEC=INFO
+
+      # TLS Configuration
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_TLS_CLIENTAUTHREQUIRED=true
+      - CORE_PEER_TLS_CLIENTROOTCAS_FILES=/etc/hyperledger/fabric/tls/ca.crt
+
+      # CouchDB Configuration
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0.lab.cold.dfir.local:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+
+      # Operations and Metrics
+      - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:9546
+      - CORE_METRICS_PROVIDER=prometheus
+
+      # Chaincode
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      - CORE_CHAINCODE_MODE=net
+
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: peer node start
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - ../crypto-config/peerOrganizations/lab.cold.dfir.local/peers/peer0.lab.cold.dfir.local/msp:/etc/hyperledger/fabric/msp
+      - ../crypto-config/peerOrganizations/lab.cold.dfir.local/peers/peer0.lab.cold.dfir.local/tls:/etc/hyperledger/fabric/tls
+      - peer0.lab.cold.dfir.local:/var/hyperledger/production
+    ports:
+      - 9051:9051
+      - 9546:9546
+    depends_on:
+      - couchdb0.lab.cold.dfir.local
+    networks:
+      - dfir-cold
+
+  couchdb1.lab.cold.dfir.local:
+    container_name: couchdb1.lab.cold.dfir.local
+    image: couchdb:3.3.3
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    ports:
+      - 16984:5984
+    volumes:
+      - couchdb1.lab.cold.dfir.local:/opt/couchdb/data
+    networks:
+      - dfir-cold
+
+  peer1.lab.cold.dfir.local:
+    container_name: peer1.lab.cold.dfir.local
+    image: hyperledger/fabric-peer:3.0.0
+    environment:
+      # Peer Configuration
+      - CORE_PEER_ID=peer1.lab.cold.dfir.local
+      - CORE_PEER_ADDRESS=peer1.lab.cold.dfir.local:9053
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:9053
+      - CORE_PEER_CHAINCODEADDRESS=peer1.lab.cold.dfir.local:9054
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:9054
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.lab.cold.dfir.local:9051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.lab.cold.dfir.local:9053
+      - CORE_PEER_LOCALMSPID=ForensicLabMSP
+
+      # Logging
+      - FABRIC_LOGGING_SPEC=INFO
+
+      # TLS Configuration
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_TLS_CLIENTAUTHREQUIRED=true
+      - CORE_PEER_TLS_CLIENTROOTCAS_FILES=/etc/hyperledger/fabric/tls/ca.crt
+
+      # CouchDB Configuration
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1.lab.cold.dfir.local:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+
+      # Operations and Metrics
+      - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:9547
+      - CORE_METRICS_PROVIDER=prometheus
+
+      # Chaincode
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      - CORE_CHAINCODE_MODE=net
+
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: peer node start
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - ../crypto-config/peerOrganizations/lab.cold.dfir.local/peers/peer1.lab.cold.dfir.local/msp:/etc/hyperledger/fabric/msp
+      - ../crypto-config/peerOrganizations/lab.cold.dfir.local/peers/peer1.lab.cold.dfir.local/tls:/etc/hyperledger/fabric/tls
+      - peer1.lab.cold.dfir.local:/var/hyperledger/production
+    ports:
+      - 9053:9053
+      - 9547:9547
+    depends_on:
+      - couchdb1.lab.cold.dfir.local
+    networks:
+      - dfir-cold
+
+  # ============================================================================
+  # CourtMSP Peers and CouchDB
+  # ============================================================================
+
+  couchdb0.court.cold.dfir.local:
+    container_name: couchdb0.court.cold.dfir.local
+    image: couchdb:3.3.3
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    ports:
+      - 17984:5984
+    volumes:
+      - couchdb0.court.cold.dfir.local:/opt/couchdb/data
+    networks:
+      - dfir-cold
+
+  peer0.court.cold.dfir.local:
+    container_name: peer0.court.cold.dfir.local
+    image: hyperledger/fabric-peer:3.0.0
+    environment:
+      # Peer Configuration
+      - CORE_PEER_ID=peer0.court.cold.dfir.local
+      - CORE_PEER_ADDRESS=peer0.court.cold.dfir.local:10051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:10051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.court.cold.dfir.local:10052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:10052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.court.cold.dfir.local:10053
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.court.cold.dfir.local:10051
+      - CORE_PEER_LOCALMSPID=CourtMSP
+
+      # Logging
+      - FABRIC_LOGGING_SPEC=INFO
+
+      # TLS Configuration
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_TLS_CLIENTAUTHREQUIRED=true
+      - CORE_PEER_TLS_CLIENTROOTCAS_FILES=/etc/hyperledger/fabric/tls/ca.crt
+
+      # CouchDB Configuration
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0.court.cold.dfir.local:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+
+      # Operations and Metrics
+      - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:9548
+      - CORE_METRICS_PROVIDER=prometheus
+
+      # Chaincode
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      - CORE_CHAINCODE_MODE=net
+
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: peer node start
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - ../crypto-config/peerOrganizations/court.cold.dfir.local/peers/peer0.court.cold.dfir.local/msp:/etc/hyperledger/fabric/msp
+      - ../crypto-config/peerOrganizations/court.cold.dfir.local/peers/peer0.court.cold.dfir.local/tls:/etc/hyperledger/fabric/tls
+      - peer0.court.cold.dfir.local:/var/hyperledger/production
+    ports:
+      - 10051:10051
+      - 9548:9548
+    depends_on:
+      - couchdb0.court.cold.dfir.local
+    networks:
+      - dfir-cold
+
+  couchdb1.court.cold.dfir.local:
+    container_name: couchdb1.court.cold.dfir.local
+    image: couchdb:3.3.3
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    ports:
+      - 18984:5984
+    volumes:
+      - couchdb1.court.cold.dfir.local:/opt/couchdb/data
+    networks:
+      - dfir-cold
+
+  peer1.court.cold.dfir.local:
+    container_name: peer1.court.cold.dfir.local
+    image: hyperledger/fabric-peer:3.0.0
+    environment:
+      # Peer Configuration
+      - CORE_PEER_ID=peer1.court.cold.dfir.local
+      - CORE_PEER_ADDRESS=peer1.court.cold.dfir.local:10053
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:10053
+      - CORE_PEER_CHAINCODEADDRESS=peer1.court.cold.dfir.local:10054
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:10054
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.court.cold.dfir.local:10051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.court.cold.dfir.local:10053
+      - CORE_PEER_LOCALMSPID=CourtMSP
+
+      # Logging
+      - FABRIC_LOGGING_SPEC=INFO
+
+      # TLS Configuration
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_TLS_CLIENTAUTHREQUIRED=true
+      - CORE_PEER_TLS_CLIENTROOTCAS_FILES=/etc/hyperledger/fabric/tls/ca.crt
+
+      # CouchDB Configuration
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1.court.cold.dfir.local:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+
+      # Operations and Metrics
+      - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:9549
+      - CORE_METRICS_PROVIDER=prometheus
+
+      # Chaincode
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      - CORE_CHAINCODE_MODE=net
+
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: peer node start
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - ../crypto-config/peerOrganizations/court.cold.dfir.local/peers/peer1.court.cold.dfir.local/msp:/etc/hyperledger/fabric/msp
+      - ../crypto-config/peerOrganizations/court.cold.dfir.local/peers/peer1.court.cold.dfir.local/tls:/etc/hyperledger/fabric/tls
+      - peer1.court.cold.dfir.local:/var/hyperledger/production
+    ports:
+      - 10053:10053
+      - 9549:9549
+    depends_on:
+      - couchdb1.court.cold.dfir.local
+    networks:
+      - dfir-cold
