@@ -75,12 +75,19 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
 
         # Get certificate info from nginx headers
         cert_verify = request.META.get('HTTP_X_SSL_CLIENT_VERIFY', 'NONE')
-        cert_serial = request.META.get('HTTP_X_SSL_CLIENT_SERIAL', '')
+        cert_serial_hex = request.META.get('HTTP_X_SSL_CLIENT_SERIAL', '')
         cert_dn = request.META.get('HTTP_X_SSL_CLIENT_DN', '')
 
         # Skip if no certificate or verification failed
-        if cert_verify != 'SUCCESS' or not cert_serial:
-            logger.debug(f"No valid client certificate: verify={cert_verify}, serial={cert_serial}")
+        if cert_verify != 'SUCCESS' or not cert_serial_hex:
+            logger.debug(f"No valid client certificate: verify={cert_verify}, serial={cert_serial_hex}")
+            return None
+
+        # Convert hex serial to decimal (nginx sends hex, DB stores decimal)
+        try:
+            cert_serial = str(int(cert_serial_hex, 16))
+        except ValueError:
+            logger.warning(f"Invalid certificate serial format: {cert_serial_hex}")
             return None
 
         # Import here to avoid circular imports
@@ -102,7 +109,7 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
 
             # Check if user is active
             if not user.is_active:
-                logger.warning(f"Certificate {cert_serial} belongs to inactive user {user.username}")
+                logger.warning(f"Certificate {cert_serial} (hex: {cert_serial_hex}) belongs to inactive user {user.username}")
                 return JsonResponse({
                     'error': 'User account is disabled'
                 }, status=403)
@@ -114,7 +121,7 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
             # Mark authentication method as certificate-based
             request.session['auth_method'] = 'certificate'
 
-            logger.info(f"User {user.username} authenticated via mTLS certificate {cert_serial}")
+            logger.info(f"User {user.username} authenticated via mTLS certificate {cert_serial} (hex: {cert_serial_hex})")
 
             # Check MFA status
             if not user.otp_secret_key:
@@ -132,7 +139,7 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
             return None
 
         except Certificate.DoesNotExist:
-            logger.warning(f"Certificate with serial {cert_serial} not found or revoked")
+            logger.warning(f"Certificate with serial {cert_serial} (hex: {cert_serial_hex}) not found or revoked")
             return JsonResponse({
                 'error': 'Invalid or revoked certificate'
             }, status=401)
