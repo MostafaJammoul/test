@@ -37,7 +37,7 @@ class MFASetupView(APIView):
     Note: Allows unauthenticated access during login flow (uses session data)
     """
     permission_classes = [AllowAny]
-    authentication_classes = []  # Disable authentication for MFA setup during login
+    # Don't disable authentication - we need to see middleware-authenticated users
 
     def get(self, request):
         """
@@ -45,8 +45,8 @@ class MFASetupView(APIView):
 
         Database: No writes, only reads users_user to check current mfa_level
         """
-        # Check if user is authenticated OR has username in session (during login)
-        if request.user.is_authenticated:
+        # Check if user is authenticated (middleware or DRF) OR has username in session
+        if request.user.is_authenticated and not request.user.is_anonymous:
             user = request.user
         elif 'auth_username' in request.session:
             # User logged in but hasn't completed MFA yet
@@ -108,8 +108,8 @@ class MFASetupView(APIView):
         - users_user.otp_secret_key = secret
         - users_user.mfa_level = 2 (force enabled)
         """
-        # Check if user is authenticated OR has username in session (during login)
-        if request.user.is_authenticated:
+        # Check if user is authenticated (middleware or DRF) OR has username in session
+        if request.user.is_authenticated and not request.user.is_anonymous:
             user = request.user
         elif 'auth_username' in request.session:
             username = request.session.get('auth_username')
@@ -197,7 +197,7 @@ class MFAVerifyView(APIView):
     Note: Allows unauthenticated access during login flow (uses session data)
     """
     permission_classes = [AllowAny]
-    authentication_classes = []  # Disable authentication for MFA verification during login
+    # Don't disable authentication - we need to see middleware-authenticated users
 
     def post(self, request):
         """
@@ -206,8 +206,8 @@ class MFAVerifyView(APIView):
         Database: Only reads users_user.otp_secret_key
         Session: Sets mfa_verified=True in django_session
         """
-        # Check if user is authenticated OR has username in session (during login)
-        if request.user.is_authenticated:
+        # Check if user is authenticated (middleware or DRF) OR has username in session
+        if request.user.is_authenticated and not request.user.is_anonymous:
             user = request.user
         elif 'auth_username' in request.session:
             username = request.session.get('auth_username')
@@ -283,11 +283,11 @@ class MFAStatusView(APIView):
     Note: Allows unauthenticated access during login flow (uses session data)
     """
     permission_classes = [AllowAny]
-    authentication_classes = []  # Disable authentication for MFA status check during login
+    # Don't disable authentication - we need to see middleware-authenticated users
 
     def get(self, request):
-        # Check if user is authenticated OR has username in session (during login)
-        if request.user.is_authenticated:
+        # Check if user is authenticated (either by middleware or DRF) OR has username in session
+        if request.user.is_authenticated and not request.user.is_anonymous:
             user = request.user
         elif 'auth_username' in request.session:
             username = request.session.get('auth_username')
