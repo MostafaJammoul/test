@@ -37,6 +37,7 @@ class MFASetupView(APIView):
     Note: Allows unauthenticated access during login flow (uses session data)
     """
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for MFA setup during login
 
     def get(self, request):
         """
@@ -196,6 +197,7 @@ class MFAVerifyView(APIView):
     Note: Allows unauthenticated access during login flow (uses session data)
     """
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for MFA verification during login
 
     def post(self, request):
         """
@@ -281,6 +283,7 @@ class MFAStatusView(APIView):
     Note: Allows unauthenticated access during login flow (uses session data)
     """
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for MFA status check during login
 
     def get(self, request):
         # Check if user is authenticated OR has username in session (during login)

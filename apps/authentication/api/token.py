@@ -17,6 +17,7 @@ __all__ = ['TokenCreateApi']
 
 class TokenCreateApi(AuthMixin, CreateAPIView):
     permission_classes = (AllowAny,)
+    authentication_classes = []  # Disable authentication for login endpoint
     serializer_class = serializers.BearerTokenSerializer
 
     def create_session_if_need(self):
