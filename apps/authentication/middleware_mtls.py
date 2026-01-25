@@ -91,10 +91,10 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
 
         try:
             # Query pki_certificate table
-            # SQL: SELECT * FROM pki_certificate WHERE serial_number=%s AND is_revoked=FALSE
+            # SQL: SELECT * FROM pki_certificate WHERE serial_number=%s AND revoked=FALSE
             certificate = Certificate.objects.select_related('user').get(
                 serial_number=cert_serial,
-                is_revoked=False
+                revoked=False
             )
 
             # Get the user associated with this certificate
