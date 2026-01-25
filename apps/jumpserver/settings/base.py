@@ -186,8 +186,8 @@ MIDDLEWARE = [
     'authentication.backends.oidc.middleware.OIDCRefreshIDTokenMiddleware',
     'authentication.backends.cas.middleware.CASMiddleware',
     'authentication.middleware.MFAMiddleware',
-    # Blockchain Chain of Custody: Enforce MFA verification
-    'authentication.middleware_mtls.MFARequiredMiddleware',
+    # Blockchain Chain of Custody: MFA is optional (disabled for now)
+    # 'authentication.middleware_mtls.MFARequiredMiddleware',
     'authentication.middleware.ThirdPartyLoginMiddleware',
     'authentication.middleware.SessionCookieMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
