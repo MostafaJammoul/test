@@ -32,8 +32,7 @@ class TokenCreateApi(AuthMixin, CreateAPIView):
         serializer.is_valid(raise_exception=True)
         try:
             user = self.get_user_or_auth(serializer.validated_data)
-            # MFA is optional - skip MFA requirement check
-            # self.check_user_mfa_if_need(user)
+            self.check_user_mfa_if_need(user)
             self.check_user_login_confirm_if_need(user)
             self.send_auth_signal(success=True, user=user)
             resp = super().create(request, *args, **kwargs)

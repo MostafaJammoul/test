@@ -123,18 +123,12 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
 
             logger.info(f"User {user.username} authenticated via mTLS certificate {cert_serial} (hex: {cert_serial_hex})")
 
-            # Check MFA status
+            # Set MFA setup flag if user hasn't configured MFA yet
+            # This tells MFARequiredMiddleware to redirect to /setup-mfa instead of /mfa-challenge
             if not user.otp_secret_key:
-                # User has no MFA configured - needs setup
-                # Set flag in session for frontend to detect
                 request.session['mfa_setup_required'] = True
-                request.session['mfa_verified'] = False
                 logger.info(f"User {user.username} needs MFA setup")
-            else:
-                # User has MFA configured - needs verification each login
-                request.session['mfa_setup_required'] = False
-                request.session['mfa_verified'] = False
-                logger.info(f"User {user.username} needs MFA verification")
+            # DO NOT set auth_mfa here - user must verify MFA on each login
 
             return None
 
