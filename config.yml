@@ -148,10 +148,10 @@ BLOCKCHAIN_USE_MOCK: false  # Using real FYP-2 blockchain
 FABRIC_API_URL: "https://192.168.148.187:3001"  # VM 2 (Blockchain) API endpoint
 
 # mTLS Client Certificates (Maximum Security)
-# Location: /etc/jumpserver/certs/
-FABRIC_CLIENT_CERT: "/etc/jumpserver/certs/jumpserver-client-cert.pem"
-FABRIC_CLIENT_KEY: "/etc/jumpserver/certs/jumpserver-client-key.pem"
-FABRIC_CA_CERT: "/etc/jumpserver/certs/ca-cert.pem"
+# Location: /home/jsroot/js/data/certs/mtls/client-certs/
+FABRIC_CLIENT_CERT: "/home/jsroot/js/data/certs/mtls/client-certs/jumpserver-client-cert.pem"
+FABRIC_CLIENT_KEY: "/home/jsroot/js/data/certs/mtls/client-certs/jumpserver-client-key.pem"
+FABRIC_CA_CERT: "/home/jsroot/js/data/certs/mtls/client-certs/ca-cert.pem"
 
 # Legacy settings (kept for compatibility)
 BLOCKCHAIN_CONFIG_FILE: "config/blockchain.yml"
