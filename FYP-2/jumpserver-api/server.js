@@ -146,10 +146,14 @@ async function initialize() {
     // Try to connect to IPFS (optional)
     try {
       ipfs = create({ url: CONFIG.ipfsUrl });
+
+      // Actually test the connection by calling version endpoint
+      await ipfs.version();
       console.log('✓ Connected to IPFS at', CONFIG.ipfsUrl);
     } catch (ipfsError) {
       console.warn('⚠ IPFS not available - will use mock CIDs');
       console.warn('  Evidence files will NOT be stored off-chain');
+      console.warn(`  Reason: ${ipfsError.message || 'Connection failed'}`);
       ipfs = null;
     }
 
