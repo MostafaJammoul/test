@@ -143,9 +143,15 @@ async function initialize() {
     coldGateway = cold.gateway;
     coldContract = cold.contract;
 
-    // Connect to IPFS
-    ipfs = create({ url: CONFIG.ipfsUrl });
-    console.log('✓ Connected to IPFS at', CONFIG.ipfsUrl);
+    // Try to connect to IPFS (optional)
+    try {
+      ipfs = create({ url: CONFIG.ipfsUrl });
+      console.log('✓ Connected to IPFS at', CONFIG.ipfsUrl);
+    } catch (ipfsError) {
+      console.warn('⚠ IPFS not available - will use mock CIDs');
+      console.warn('  Evidence files will NOT be stored off-chain');
+      ipfs = null;
+    }
 
     console.log('✓ All connections established');
     return true;
@@ -210,10 +216,22 @@ app.post('/api/evidence', upload.single('file'), async (req, res) => {
 
     console.log(`Creating evidence ${evidenceID} for case ${caseID}...`);
 
-    // 1. Upload to IPFS
-    const ipfsResult = await ipfs.add(fileBuffer);
-    const cid = ipfsResult.cid.toString();
-    console.log(`✓ Uploaded to IPFS: ${cid}`);
+    // 1. Upload to IPFS (or generate mock CID if IPFS not available)
+    let cid;
+    if (ipfs !== null) {
+      try {
+        const ipfsResult = await ipfs.add(fileBuffer);
+        cid = ipfsResult.cid.toString();
+        console.log(`✓ Uploaded to IPFS: ${cid}`);
+      } catch (ipfsError) {
+        console.warn('⚠ IPFS upload failed, using mock CID');
+        cid = `mock-cid-${hash.substring(0, 16)}`;
+      }
+    } else {
+      // IPFS not available - generate deterministic mock CID from hash
+      cid = `mock-cid-${hash.substring(0, 16)}`;
+      console.log(`⚠ Using mock CID (IPFS not available): ${cid}`);
+    }
 
     // 2. Submit to blockchain
     const metadataStr = typeof metadata === 'string' ? metadata : JSON.stringify(metadata || {});
@@ -235,7 +253,8 @@ app.post('/api/evidence', upload.single('file'), async (req, res) => {
       evidenceID,
       cid,
       hash,
-      chain: 'hot'
+      chain: 'hot',
+      ipfsAvailable: ipfs !== null
     });
   } catch (error) {
     console.error('Error creating evidence:', error);

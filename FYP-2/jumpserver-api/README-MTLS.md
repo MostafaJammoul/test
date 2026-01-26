@@ -29,8 +29,9 @@ This REST API bridge enables secure communication between JumpServer (VM 1) and 
 │          ├──► Hyperledger Fabric        │
 │          │    (Hot + Cold Chains)       │
 │          │                               │
-│          └──► IPFS Cluster               │
-│               (4-node private cluster)   │
+│          └──► IPFS (OPTIONAL)           │
+│               - Mock CIDs if unavailable│
+│               - Real IPFS can be added  │
 └─────────────────────────────────────────┘
 ```
 

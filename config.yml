@@ -157,9 +157,10 @@ FABRIC_CA_CERT: "/etc/jumpserver/certs/ca-cert.pem"
 BLOCKCHAIN_CONFIG_FILE: "config/blockchain.yml"
 BLOCKCHAIN_FABRIC_NETWORK: "config/fabric-network.json"
 
-# IPFS Configuration (handled by API bridge)
-IPFS_ENABLED: true  # IPFS is available through FYP-2
-IPFS_USE_MOCK: false  # Using real IPFS cluster
+# IPFS Configuration (not yet deployed - will be added later)
+# API bridge will use mock CIDs until IPFS cluster is deployed
+IPFS_ENABLED: false  # IPFS not yet available
+IPFS_USE_MOCK: true  # Using mock CIDs for now
 
 # ==============================================================================
 # END BLOCKCHAIN CUSTOMIZATION
