@@ -471,3 +471,15 @@ if os.environ.get('DEBUG_TOOLBAR', False):
     DEBUG_TOOLBAR_PANELS = [
         'debug_toolbar.panels.profiling.ProfilingPanel',
     ]
+
+# ============================================================================
+# FYP-2 Blockchain Integration with mTLS
+# ============================================================================
+# API Bridge URL (VM 2 - Blockchain)
+FABRIC_API_URL = CONFIG.get('FABRIC_API_URL', 'https://192.168.148.187:3001')
+
+# mTLS Client Certificates (for secure communication with API bridge)
+# Recommended location: /etc/jumpserver/certs/
+FABRIC_CLIENT_CERT = CONFIG.get('FABRIC_CLIENT_CERT', '/etc/jumpserver/certs/jumpserver-client-cert.pem')
+FABRIC_CLIENT_KEY = CONFIG.get('FABRIC_CLIENT_KEY', '/etc/jumpserver/certs/jumpserver-client-key.pem')
+FABRIC_CA_CERT = CONFIG.get('FABRIC_CA_CERT', '/etc/jumpserver/certs/ca-cert.pem')
