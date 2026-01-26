@@ -149,7 +149,7 @@ echo "-------------------------------------------"
 echo "Running Django test script..."
 echo ""
 
-cd /home/user/test/apps
+cd /home/jsroot/js/apps
 
 if [ -f "test_blockchain_api.py" ]; then
     python test_blockchain_api.py

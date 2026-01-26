@@ -41,7 +41,7 @@ curl --cert /home/jsroot/js/data/certs/mtls/client-certs/jumpserver-client-cert.
 ### 2. Run Automated Test Suite
 
 ```bash
-cd /home/user/test/apps
+cd /home/jsroot/js/apps
 
 # Make script executable
 chmod +x test_integration.sh
@@ -63,7 +63,7 @@ chmod +x test_integration.sh
 ### 3. Manual Django Test (Python Shell)
 
 ```bash
-cd /home/user/test/apps
+cd /home/jsroot/js/apps
 python manage.py shell
 ```
 
@@ -161,7 +161,7 @@ sudo ufw allow 3001/tcp
 
 **Verify config.yml:**
 ```bash
-grep -A 5 "FABRIC_" /home/user/test/config.yml
+grep -A 5 "FABRIC_" /home/jsroot/js/config.yml
 ```
 
 **Should show:**
@@ -204,6 +204,9 @@ print("CA cert exists:", os.path.exists(settings.FABRIC_CA_CERT))
 
 **Your specific paths:**
 ```bash
+# Project root
+/home/jsroot/js/
+
 # Certificate directory
 /home/jsroot/js/data/certs/mtls/client-certs/
 
@@ -211,20 +214,20 @@ print("CA cert exists:", os.path.exists(settings.FABRIC_CA_CERT))
 https://192.168.148.187:3001
 
 # Test scripts
-/home/user/test/apps/test_integration.sh
-/home/user/test/apps/test_blockchain_api.py
+/home/jsroot/js/apps/test_integration.sh
+/home/jsroot/js/apps/test_blockchain_api.py
 ```
 
 **Common commands:**
 ```bash
 # Run full test suite
-cd /home/user/test/apps && ./test_integration.sh
+cd /home/jsroot/js/apps && ./test_integration.sh
 
 # Run Django tests only
-cd /home/user/test/apps && python test_blockchain_api.py
+cd /home/jsroot/js/apps && python test_blockchain_api.py
 
 # Django shell
-cd /home/user/test/apps && python manage.py shell
+cd /home/jsroot/js/apps && python manage.py shell
 
 # Check API bridge status (VM 2)
 cd ~/Desktop/FYP-2/jumpserver-api && ./start.sh
@@ -267,6 +270,6 @@ cd ~/Desktop/FYP-2/jumpserver-api && ./start.sh
 
 **Ready to test? Run:**
 ```bash
-cd /home/user/test/apps
+cd /home/jsroot/js/apps
 ./test_integration.sh
 ```
