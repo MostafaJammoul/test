@@ -78,8 +78,15 @@ openssl req -new -key server-key.pem -out server.csr \
     -subj "/C=US/ST=State/L=City/O=JumpServer-FYP2/OU=API-Bridge/CN=fyp2-api-bridge" \
     2>/dev/null
 
+# Prompt for server IP address (VM 2)
+echo ""
+echo -e "${YELLOW}Enter the IP address of VM 2 (API Bridge server):${NC}"
+echo -e "${YELLOW}(Press Enter to skip and use localhost only)${NC}"
+read -r SERVER_IP
+
 # Create server certificate extensions file
-cat > server-ext.cnf <<EOF
+if [ -n "$SERVER_IP" ]; then
+    cat > server-ext.cnf <<EOF
 basicConstraints = CA:FALSE
 nsCertType = server
 nsComment = "API Bridge Server Certificate"
@@ -92,17 +99,35 @@ subjectAltName = @alt_names
 [alt_names]
 DNS.1 = localhost
 DNS.2 = fyp2-api-bridge
-DNS.3 = *.local
 IP.1 = 127.0.0.1
-IP.2 = 192.168.0.0/16
-IP.3 = 10.0.0.0/8
+IP.2 = $SERVER_IP
 EOF
+else
+    cat > server-ext.cnf <<EOF
+basicConstraints = CA:FALSE
+nsCertType = server
+nsComment = "API Bridge Server Certificate"
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer:always
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = fyp2-api-bridge
+IP.1 = 127.0.0.1
+EOF
+fi
+echo ""
 
 # Sign server certificate with CA
-openssl x509 -req -in server.csr -CA ca-cert.pem -CAkey ca-key.pem \
+if ! openssl x509 -req -in server.csr -CA ca-cert.pem -CAkey ca-key.pem \
     -CAcreateserial -out server-cert.pem -days 3650 \
-    -extfile server-ext.cnf \
-    2>/dev/null
+    -extfile server-ext.cnf 2>&1 | grep -v "^Signature ok"; then
+    echo -e "${RED}✗ Failed to generate server certificate${NC}"
+    exit 1
+fi
 
 echo -e "${GREEN}✓ Server certificate generated${NC}"
 echo "  - Server Private Key: server-key.pem"
@@ -136,10 +161,12 @@ extendedKeyUsage = clientAuth
 EOF
 
 # Sign client certificate with CA
-openssl x509 -req -in jumpserver-client.csr -CA ca-cert.pem -CAkey ca-key.pem \
+if ! openssl x509 -req -in jumpserver-client.csr -CA ca-cert.pem -CAkey ca-key.pem \
     -CAcreateserial -out jumpserver-client-cert.pem -days 3650 \
-    -extfile client-ext.cnf \
-    2>/dev/null
+    -extfile client-ext.cnf 2>&1 | grep -v "^Signature ok"; then
+    echo -e "${RED}✗ Failed to generate client certificate${NC}"
+    exit 1
+fi
 
 echo -e "${GREEN}✓ Client certificate generated${NC}"
 echo "  - Client Private Key: jumpserver-client-key.pem"
