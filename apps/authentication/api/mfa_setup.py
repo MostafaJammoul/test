@@ -153,9 +153,8 @@ class MFASetupView(APIView):
         user.save(update_fields=['otp_secret_key', 'mfa_level'])
         # Database Transaction End
 
-        # Authenticate user in Django session
-        from django.contrib.auth import login as auth_login
-        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        # User is already authenticated via mTLS middleware - no need to call auth_login() again
+        # Calling auth_login() would trigger signals that set auth_mfa_required before we can set auth_mfa
 
         # Mark MFA as verified in session using JumpServer's standard keys
         import time
@@ -165,8 +164,9 @@ class MFASetupView(APIView):
         request.session['auth_mfa_required'] = 0
         request.session['auth_mfa_type'] = 'totp'
 
-        # Clear pending secret
-        del request.session['pending_mfa_secret']
+        # Clear setup flags
+        request.session.pop('mfa_setup_required', None)
+        request.session.pop('pending_mfa_secret', None)
 
         # Generate authentication token for immediate use
         token, date_expired = user.create_bearer_token(request)
@@ -241,9 +241,8 @@ class MFAVerifyView(APIView):
                 'error': 'Invalid MFA code'
             }, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Authenticate user in Django session
-        from django.contrib.auth import login as auth_login
-        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        # User is already authenticated via mTLS middleware - no need to call auth_login() again
+        # Calling auth_login() would trigger signals that set auth_mfa_required before we can set auth_mfa
 
         # Mark MFA as verified in session using JumpServer's standard keys
         # Database Write: django_session table
@@ -253,6 +252,9 @@ class MFAVerifyView(APIView):
         request.session['auth_mfa_time'] = time.time()
         request.session['auth_mfa_required'] = 0
         request.session['auth_mfa_type'] = 'totp'
+
+        # Clear any setup flags
+        request.session.pop('mfa_setup_required', None)
 
         # Generate authentication token for immediate use
         token, date_expired = user.create_bearer_token(request)

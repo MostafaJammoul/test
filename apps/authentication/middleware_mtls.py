@@ -156,6 +156,10 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
             # Mark authentication method as certificate-based
             request.session['auth_method'] = 'certificate'
 
+            # Clear auth_mfa_required that may have been set by JumpServer's signal handler
+            # We use our own MFARequiredMiddleware instead of JumpServer's MFAMiddleware
+            request.session['auth_mfa_required'] = 0
+
             logger.info(f"User {user.username} authenticated via mTLS certificate {cert_serial} (hex: {cert_serial_hex})")
 
             # Set MFA setup flag if user hasn't configured MFA yet
