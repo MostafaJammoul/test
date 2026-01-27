@@ -51,8 +51,8 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
         '/api/v1/authentication/auth/',  # Token creation endpoint
         '/api/v1/authentication/tokens/',  # Legacy token endpoint
         '/api/v1/authentication/mfa/',  # MFA endpoints (setup, verify, status)
-        '/api/v1/users/me/',  # User profile endpoint
-        '/api/v1/users/profile/',  # User profile endpoint
+        # Note: /api/v1/users/me/ is NOT exempt - it needs mTLS auth for certificate users
+        # Password-authenticated users will work via session auth with CSRF
     ]
 
     def process_request(self, request):
