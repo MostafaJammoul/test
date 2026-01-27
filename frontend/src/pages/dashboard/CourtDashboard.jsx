@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
@@ -8,9 +9,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import apiClient from '../../services/api';
 import { STATUS_DISPLAY } from '../../utils/constants';
 import { formatDate } from '../../utils/formatters';
+import CreateInvestigationModal from '../../components/modals/CreateInvestigationModal';
+import GUIDResolutionModal from '../../components/modals/GUIDResolutionModal';
 
 export default function CourtDashboard() {
   const { user } = useAuth();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showGUIDModal, setShowGUIDModal] = useState(false);
 
   // Fetch ALL investigations (Court can see everything)
   const { data: investigations, isLoading } = useQuery({
@@ -97,15 +102,29 @@ export default function CourtDashboard() {
           <Card title="Quick Actions">
             <div className="space-y-3">
               <Button
+                onClick={() => setShowCreateModal(true)}
+                variant="primary"
+                className="w-full"
+              >
+                Create New Investigation
+              </Button>
+              <Button
                 as={Link}
                 to="/investigations"
-                variant="primary"
+                variant="secondary"
                 className="w-full"
               >
                 View All Cases
               </Button>
+              <Button
+                onClick={() => setShowGUIDModal(true)}
+                variant="secondary"
+                className="w-full"
+              >
+                Resolve Anonymous GUID
+              </Button>
               <p className="text-sm text-gray-600">
-                You have read-only access to all investigations in the system. You can view evidence, download files, and resolve GUIDs.
+                You have full court access including case creation, archival, and GUID resolution.
               </p>
             </div>
           </Card>
@@ -151,6 +170,16 @@ export default function CourtDashboard() {
             </div>
           </Card>
         </div>
+
+        {/* Modals */}
+        <CreateInvestigationModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+        />
+        <GUIDResolutionModal
+          isOpen={showGUIDModal}
+          onClose={() => setShowGUIDModal(false)}
+        />
       </div>
     </Layout>
   );
