@@ -83,12 +83,14 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
             logger.debug(f"Skipping mTLS: user {user} already authenticated via certificate")
             return None
 
-        # If session says authenticated but user isn't loaded, clear stale session data
+        # If session says authenticated but user isn't loaded, clear stale AUTH data only
+        # IMPORTANT: Preserve MFA-related session data (pending_mfa_secret, mfa_setup_required, etc.)
         if not is_authenticated and request.session.get('_auth_user_id'):
-            logger.debug(f"Clearing stale session: had _auth_user_id but user not loaded")
-            # Clear stale auth data
+            logger.debug(f"Clearing stale auth session data (preserving MFA data)")
+            # Only clear auth-related keys, NOT MFA setup keys
             for key in ['_auth_user_id', '_auth_user_backend', '_auth_user_hash', 'auth_method']:
                 request.session.pop(key, None)
+            # DO NOT clear: pending_mfa_secret, mfa_setup_required, auth_mfa, etc.
 
         # Get certificate info from nginx headers
         cert_verify = request.META.get('HTTP_X_SSL_CLIENT_VERIFY', 'NONE')
@@ -147,7 +149,9 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
 
             # Log user in (creates session)
             # Database: INSERT INTO django_session
-            auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            # Use JMSModelBackend - this MUST match a backend in AUTHENTICATION_BACKENDS
+            # otherwise Django's AuthenticationMiddleware won't load the user from session
+            auth_login(request, user, backend='authentication.backends.base.JMSModelBackend')
 
             # Mark authentication method as certificate-based
             request.session['auth_method'] = 'certificate'
