@@ -107,12 +107,14 @@ _blockchain_user_pki_perms = (
 # ==============================================================================
 
 _blockchain_investigator_perms = (
-    # Blockchain operations
-    ('blockchain', 'investigation', '*', '*'),
+    # Blockchain operations - Investigators work on assigned investigations only (no create)
+    ('blockchain', 'investigation', 'view,change', '*'),
     ('blockchain', 'evidence', 'add,view', '*'),
     ('blockchain', 'blockchaintransaction', 'add,view', '*'),
     ('blockchain', 'blockchaintransaction', 'append', 'hot'),
     ('blockchain', 'blockchaintransaction', 'append', 'cold'),
+    # Notes - investigators can add notes to their investigations
+    ('blockchain', 'investigationnote', 'add,view', '*'),
     # PKI permissions
     *_blockchain_user_pki_perms,
     # Audit logs (view own actions)
@@ -138,13 +140,16 @@ _blockchain_auditor_perms = (
 )
 
 _blockchain_court_perms = (
-    # Read-only blockchain access
-    ('blockchain', 'investigation', 'view', '*'),
-    ('blockchain', 'evidence', 'view', '*'),
-    ('blockchain', 'blockchaintransaction', 'view', '*'),
-    # Archive and reopen permissions
+    # Court can CREATE, view, archive, and reopen investigations
+    ('blockchain', 'investigation', 'add,view,change', '*'),
     ('blockchain', 'investigation', 'archive', '*'),
     ('blockchain', 'investigation', 'reopen', '*'),
+    # Court can view all evidence and transactions
+    ('blockchain', 'evidence', 'view', '*'),
+    ('blockchain', 'blockchaintransaction', 'view', '*'),
+    # Court can assign tags to investigations
+    ('blockchain', 'tag', 'view', '*'),
+    ('blockchain', 'investigationtag', 'add,view,delete', '*'),
     # GUID resolution (ONLY court role)
     ('blockchain', 'guidmapping', 'resolve_guid', '*'),
     # PKI permissions

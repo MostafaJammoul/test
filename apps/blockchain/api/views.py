@@ -201,7 +201,25 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
     def perform_create(self, serializer):
         """
         Create new investigation and log to blockchain
+
+        Only Court role and SystemAdmin can create investigations.
+        Investigators can only work on assigned investigations.
         """
+        from rbac.models import SystemRoleBinding
+
+        user = self.request.user
+        user_role_ids = [
+            str(role_id) for role_id in
+            SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
+        ]
+
+        # Only Court and SystemAdmin can create investigations
+        SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000A'
+
+        if SYSTEM_ADMIN_ROLE not in user_role_ids and COURT_ROLE not in user_role_ids:
+            raise PermissionDenied("Only Court role can create investigations")
+
         investigation = serializer.save(created_by=self.request.user)
 
         # TODO: CONFIGURATION - Initialize blockchain transaction for investigation creation
