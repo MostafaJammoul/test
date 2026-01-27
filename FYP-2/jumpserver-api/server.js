@@ -317,7 +317,7 @@ app.get('/api/evidence/case/:caseID', async (req, res) => {
 
     console.log(`Querying evidence for case ${caseID}...`);
 
-    const resultBytes = await hotContract.evaluateTransaction('QueryByCase', caseID);
+    const resultBytes = await hotContract.evaluateTransaction('QueryEvidencesByCase', caseID);
     const resultString = Buffer.from(resultBytes).toString('utf8');
     const result = JSON.parse(resultString);
 
