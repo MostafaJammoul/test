@@ -152,6 +152,8 @@ _blockchain_court_perms = (
     ('blockchain', 'investigationtag', 'add,view,delete', '*'),
     # GUID resolution (ONLY court role)
     ('blockchain', 'guidmapping', 'resolve_guid', '*'),
+    # Court needs to view users to assign investigators/auditors
+    ('users', 'user', 'view', '*'),
     # PKI permissions
     *_blockchain_user_pki_perms,
     # Full audit log access

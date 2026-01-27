@@ -41,11 +41,12 @@ logger = logging.getLogger(__name__)
 # BLOCKCHAIN SECURITY HARDENING - ROLE-BASED ACCESS CONTROL
 # ==============================================================================
 # Allowed blockchain role IDs (from rbac.builtin.BuiltinRole)
+# Use lowercase - database returns lowercase UUIDs
 ALLOWED_BLOCKCHAIN_ROLE_IDS = [
     '00000000-0000-0000-0000-000000000001',  # SystemAdmin
     '00000000-0000-0000-0000-000000000008',  # BlockchainInvestigator
     '00000000-0000-0000-0000-000000000009',  # BlockchainAuditor
-    '00000000-0000-0000-0000-00000000000A',  # BlockchainCourt
+    '00000000-0000-0000-0000-00000000000a',  # BlockchainCourt (lowercase!)
 ]
 
 class BlockchainRoleRequiredMixin:
@@ -64,9 +65,9 @@ class BlockchainRoleRequiredMixin:
         # Check if user has an allowed blockchain role
         from rbac.models import SystemRoleBinding
 
-        # Convert UUID objects to strings for comparison
+        # Convert UUID objects to strings and normalize to lowercase
         user_role_ids = [
-            str(role_id) for role_id in
+            str(role_id).lower() for role_id in
             SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
         ]
 
@@ -214,10 +215,13 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         ]
 
         # Only Court and SystemAdmin can create investigations
+        # Use lowercase for comparison (database returns lowercase UUIDs)
         SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
-        COURT_ROLE = '00000000-0000-0000-0000-00000000000A'
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000a'
 
-        if SYSTEM_ADMIN_ROLE not in user_role_ids and COURT_ROLE not in user_role_ids:
+        # Normalize to lowercase for comparison
+        user_role_ids_lower = [rid.lower() for rid in user_role_ids]
+        if SYSTEM_ADMIN_ROLE not in user_role_ids_lower and COURT_ROLE not in user_role_ids_lower:
             raise PermissionDenied("Only Court role can create investigations")
 
         investigation = serializer.save(created_by=self.request.user)
