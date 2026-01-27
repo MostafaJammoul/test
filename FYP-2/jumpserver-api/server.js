@@ -289,7 +289,14 @@ app.get('/api/evidence/:evidenceID', async (req, res) => {
     console.log(`Querying evidence ${evidenceID} for case ${caseID}...`);
 
     const resultBytes = await hotContract.evaluateTransaction('GetEvidenceSummary', caseID, evidenceID);
-    const result = JSON.parse(resultBytes.toString());
+    const resultString = resultBytes.toString();
+
+    // Debug: Log raw response
+    console.log('Raw chaincode response:', resultString);
+    console.log('Response length:', resultString.length);
+    console.log('First 100 chars:', resultString.substring(0, 100));
+
+    const result = JSON.parse(resultString);
 
     res.json(result);
   } catch (error) {
