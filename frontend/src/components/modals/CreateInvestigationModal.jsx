@@ -101,13 +101,13 @@ export default function CreateInvestigationModal({ isOpen, onClose }) {
     }
   };
 
-  // Filter users by role
+  // Filter users by role (case-insensitive UUID comparison)
   const investigators = users?.filter(u =>
-    u.system_roles?.some(r => r.id === '00000000-0000-0000-0000-000000000008')
+    u.system_roles?.some(r => r.id?.toLowerCase() === '00000000-0000-0000-0000-000000000008')
   ) || [];
 
   const auditors = users?.filter(u =>
-    u.system_roles?.some(r => r.id === '00000000-0000-0000-0000-000000000009')
+    u.system_roles?.some(r => r.id?.toLowerCase() === '00000000-0000-0000-0000-000000000009')
   ) || [];
 
   return (
