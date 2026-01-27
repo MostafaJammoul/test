@@ -65,13 +65,20 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
         3. INSERT INTO django_session (via auth_login())
         """
 
+        # Check session directly for existing authentication
+        # We check session instead of request.user because Django's AuthenticationMiddleware
+        # may not have run yet to set request.user from the session
+        session_auth_method = request.session.get('auth_method')
+        session_user_id = request.session.get('_auth_user_id')
+
         # Skip if user already authenticated via password (admin login)
-        # This ensures admin users who logged in with password are not re-authenticated via certificate
-        if request.user.is_authenticated and request.session.get('auth_method') == 'password':
+        if session_user_id and session_auth_method == 'password':
+            logger.debug(f"Skipping mTLS: user already authenticated via password")
             return None
 
         # Skip if user already authenticated via certificate
-        if request.user.is_authenticated and request.session.get('auth_method') == 'certificate':
+        if session_user_id and session_auth_method == 'certificate':
+            logger.debug(f"Skipping mTLS: user already authenticated via certificate")
             return None
 
         # Get certificate info from nginx headers
