@@ -28,7 +28,11 @@ docker exec cli.hot peer chaincode invoke \
   -n coc \
   --tls \
   --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/hot.coc.com/orderers/orderer.hot.coc.com/msp/tlscacerts/tlsca.hot.coc.com-cert.pem \
+  --waitForEvent \
   -c '{"function":"CreateEvidence","Args":["'$CASE_ID'","'$EVIDENCE_ID'","'$CID'","'$HASH'","{}"]}'
+
+echo -e "${GREEN}Waiting for transaction to commit...${NC}"
+sleep 2
 
 echo ""
 echo -e "${BLUE}[2/3] Querying evidence summary...${NC}"
