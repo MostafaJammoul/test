@@ -36,6 +36,9 @@ router.register(r'evidence', views.EvidenceViewSet, basename='evidence')
 router.register(r'transactions', views.BlockchainTransactionViewSet, basename='transaction')
 router.register(r'guid', views.GUIDResolverViewSet, basename='guid')
 
+# User profile endpoint
+router.register(r'user-profile', views.UserBlockchainProfileViewSet, basename='user-profile')
+
 # UI enhancement endpoints
 router.register(r'tags', views.TagViewSet, basename='tag')
 router.register(r'investigation-tags', views.InvestigationTagViewSet, basename='investigation-tag')

@@ -1,0 +1,955 @@
+{% extends '_base_only_content.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block custom_head_css_js %}
+<style>
+    .blockchain-dashboard {
+        padding: 20px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .role-badge {
+        display: inline-block;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
+
+    .role-investigator { background: #3498db; color: white; }
+    .role-auditor { background: #9b59b6; color: white; }
+    .role-court { background: #e74c3c; color: white; }
+    .role-admin { background: #2ecc71; color: white; }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .dashboard-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 20px;
+        transition: transform 0.2s;
+    }
+
+    .dashboard-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #ecf0f1;
+    }
+
+    .card-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+
+    .card-icon {
+        font-size: 24px;
+        color: #3498db;
+    }
+
+    .stat-number {
+        font-size: 32px;
+        font-weight: bold;
+        color: #2c3e50;
+        margin: 10px 0;
+    }
+
+    .stat-label {
+        color: #7f8c8d;
+        font-size: 14px;
+    }
+
+    .action-button {
+        width: 100%;
+        padding: 12px;
+        margin-top: 10px;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
+    .btn-primary { background: #3498db; color: white; }
+    .btn-primary:hover { background: #2980b9; }
+
+    .btn-success { background: #2ecc71; color: white; }
+    .btn-success:hover { background: #27ae60; }
+
+    .btn-warning { background: #f39c12; color: white; }
+    .btn-warning:hover { background: #e67e22; }
+
+    .btn-danger { background: #e74c3c; color: white; }
+    .btn-danger:hover { background: #c0392b; }
+
+    .hidden { display: none !important; }
+
+    .table-container {
+        margin-top: 20px;
+        overflow-x: auto;
+    }
+
+    .blockchain-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .blockchain-table th {
+        background: #34495e;
+        color: white;
+        padding: 12px;
+        text-align: left;
+        font-weight: bold;
+    }
+
+    .blockchain-table td {
+        padding: 12px;
+        border-bottom: 1px solid #ecf0f1;
+    }
+
+    .blockchain-table tr:hover {
+        background: #f8f9fa;
+    }
+
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .status-active { background: #d4edda; color: #155724; }
+    .status-archived { background: #f8d7da; color: #721c24; }
+    .status-closed { background: #d1ecf1; color: #0c5460; }
+
+    .blockchain-icon {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+
+    .chain-hot { background: #e74c3c; }
+    .chain-cold { background: #3498db; }
+
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+    }
+
+    .modal-content {
+        background: white;
+        margin: 5% auto;
+        padding: 30px;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 600px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #ecf0f1;
+    }
+
+    .close-modal {
+        font-size: 28px;
+        font-weight: bold;
+        color: #aaa;
+        cursor: pointer;
+    }
+
+    .close-modal:hover { color: #000; }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+    }
+
+    .form-group textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .alert {
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        font-weight: bold;
+    }
+
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="blockchain-dashboard">
+    <!-- Loading State -->
+    <div id="loading" class="alert alert-info">
+        <i class="fa fa-spinner fa-spin"></i> Loading blockchain dashboard...
+    </div>
+
+    <!-- Dashboard Header -->
+    <div id="dashboard-header" class="hidden">
+        <h1>
+            <i class="fa fa-cube"></i> Blockchain Chain of Custody
+        </h1>
+        <div class="role-badge" id="role-badge"></div>
+        <p style="color: #7f8c8d; margin-bottom: 30px;">
+            <i class="fa fa-user"></i> <span id="username"></span> |
+            <i class="fa fa-shield"></i> Secure evidence management with immutable audit trail
+        </p>
+    </div>
+
+    <!-- Statistics Dashboard -->
+    <div id="stats-grid" class="dashboard-grid hidden">
+        <!-- Will be populated dynamically -->
+    </div>
+
+    <!-- Action Cards -->
+    <div id="action-cards" class="dashboard-grid hidden">
+        <!-- Will be populated based on role -->
+    </div>
+
+    <!-- Recent Investigations Table -->
+    <div id="investigations-section" class="hidden">
+        <div class="card-header">
+            <h2 class="card-title">
+                <i class="fa fa-folder-open"></i> Recent Investigations
+            </h2>
+        </div>
+        <div class="table-container">
+            <table class="blockchain-table" id="investigations-table">
+                <thead>
+                    <tr>
+                        <th>Case Number</th>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Evidence Count</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="investigations-tbody">
+                    <!-- Will be populated dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Blockchain Transactions -->
+    <div id="transactions-section" class="hidden">
+        <div class="card-header">
+            <h2 class="card-title">
+                <i class="fa fa-chain"></i> Recent Blockchain Transactions
+            </h2>
+        </div>
+        <div class="table-container">
+            <table class="blockchain-table" id="transactions-table">
+                <thead>
+                    <tr>
+                        <th>Chain</th>
+                        <th>Transaction Hash</th>
+                        <th>Evidence Hash</th>
+                        <th>IPFS CID</th>
+                        <th>Timestamp</th>
+                        <th>Verified</th>
+                    </tr>
+                </thead>
+                <tbody id="transactions-tbody">
+                    <!-- Will be populated dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Create Investigation Modal -->
+    <div id="create-investigation-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa fa-plus-circle"></i> Create New Investigation</h2>
+                <span class="close-modal" onclick="closeModal('create-investigation-modal')">&times;</span>
+            </div>
+            <form id="create-investigation-form">
+                <div class="form-group">
+                    <label for="case-number">Case Number *</label>
+                    <input type="text" id="case-number" name="case_number" required placeholder="e.g., CASE-2026-001">
+                </div>
+                <div class="form-group">
+                    <label for="title">Title *</label>
+                    <input type="text" id="title" name="title" required placeholder="Investigation title">
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" placeholder="Detailed description..."></textarea>
+                </div>
+                <button type="submit" class="action-button btn-success">
+                    <i class="fa fa-check"></i> Create Investigation
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Upload Evidence Modal -->
+    <div id="upload-evidence-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa fa-upload"></i> Upload Evidence</h2>
+                <span class="close-modal" onclick="closeModal('upload-evidence-modal')">&times;</span>
+            </div>
+            <form id="upload-evidence-form">
+                <div class="form-group">
+                    <label for="investigation-select">Investigation *</label>
+                    <select id="investigation-select" name="investigation" required>
+                        <option value="">Select investigation...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="evidence-file">Evidence File *</label>
+                    <input type="file" id="evidence-file" name="file" required>
+                </div>
+                <div class="form-group">
+                    <label for="evidence-description">Description</label>
+                    <textarea id="evidence-description" name="description" placeholder="Evidence description..."></textarea>
+                </div>
+                <button type="submit" class="action-button btn-primary">
+                    <i class="fa fa-upload"></i> Upload to Blockchain
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- GUID Resolver Modal (Court Only) -->
+    <div id="guid-resolver-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa fa-user-secret"></i> Resolve GUID to Identity</h2>
+                <span class="close-modal" onclick="closeModal('guid-resolver-modal')">&times;</span>
+            </div>
+            <form id="guid-resolver-form">
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle"></i> This action is logged and audited. Court authorization required.
+                </div>
+                <div class="form-group">
+                    <label for="guid">Anonymous GUID *</label>
+                    <input type="text" id="guid" name="guid" required placeholder="Enter GUID...">
+                </div>
+                <div class="form-group">
+                    <label for="reason">Resolution Reason *</label>
+                    <textarea id="reason" name="reason" required placeholder="Legal justification for GUID resolution..."></textarea>
+                </div>
+                <button type="submit" class="action-button btn-danger">
+                    <i class="fa fa-unlock"></i> Resolve Identity
+                </button>
+            </form>
+            <div id="guid-result" class="hidden" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                <!-- Resolution result will appear here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global state
+let userProfile = null;
+let investigations = [];
+let transactions = [];
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    loadUserProfile();
+});
+
+// Load user's blockchain profile
+async function loadUserProfile() {
+    try {
+        const response = await fetch('/api/v1/blockchain/user-profile/');
+        if (!response.ok) throw new Error('Failed to load user profile');
+
+        userProfile = await response.json();
+        console.log('User profile loaded:', userProfile);
+
+        renderDashboard();
+    } catch (error) {
+        console.error('Error loading user profile:', error);
+        document.getElementById('loading').innerHTML =
+            '<div class="alert alert-error"><i class="fa fa-exclamation-triangle"></i> Failed to load dashboard. Please refresh the page.</div>';
+    }
+}
+
+// Render dashboard based on user role
+function renderDashboard() {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('dashboard-header').classList.remove('hidden');
+
+    // Set user info
+    document.getElementById('username').textContent = userProfile.username;
+    const roleBadge = document.getElementById('role-badge');
+    roleBadge.textContent = userProfile.role_display;
+    roleBadge.className = `role-badge role-${userProfile.role}`;
+
+    // Render statistics
+    renderStatistics();
+
+    // Render action cards based on role
+    renderActionCards();
+
+    // Load data
+    if (userProfile.can_view_all || userProfile.role === 'investigator') {
+        loadInvestigations();
+    }
+
+    if (userProfile.can_view_transactions) {
+        loadTransactions();
+    }
+}
+
+// Render statistics cards
+function renderStatistics() {
+    const statsGrid = document.getElementById('stats-grid');
+    statsGrid.classList.remove('hidden');
+
+    // Different stats based on role
+    let statsHTML = '';
+
+    if (userProfile.role === 'investigator' || userProfile.can_view_all) {
+        statsHTML += `
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="card-title">Active Investigations</span>
+                    <i class="fa fa-folder-open card-icon"></i>
+                </div>
+                <div class="stat-number" id="stat-active-investigations">--</div>
+                <div class="stat-label">Currently active</div>
+            </div>
+        `;
+    }
+
+    if (userProfile.can_upload_evidence || userProfile.can_view_all) {
+        statsHTML += `
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="card-title">Evidence Files</span>
+                    <i class="fa fa-file-archive-o card-icon"></i>
+                </div>
+                <div class="stat-number" id="stat-evidence-count">--</div>
+                <div class="stat-label">Total evidence secured</div>
+            </div>
+        `;
+    }
+
+    if (userProfile.can_view_transactions) {
+        statsHTML += `
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="card-title">Blockchain Transactions</span>
+                    <i class="fa fa-chain card-icon"></i>
+                </div>
+                <div class="stat-number" id="stat-transactions">--</div>
+                <div class="stat-label">Immutable records</div>
+            </div>
+        `;
+    }
+
+    if (userProfile.role === 'court') {
+        statsHTML += `
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="card-title">Archived Cases</span>
+                    <i class="fa fa-archive card-icon"></i>
+                </div>
+                <div class="stat-number" id="stat-archived">--</div>
+                <div class="stat-label">Cold chain storage</div>
+            </div>
+        `;
+    }
+
+    statsGrid.innerHTML = statsHTML;
+
+    // Load actual statistics
+    loadStatistics();
+}
+
+// Load statistics from API
+async function loadStatistics() {
+    try {
+        // Load investigations count
+        if (userProfile.role === 'investigator' || userProfile.can_view_all) {
+            const invResp = await fetch('/api/v1/blockchain/investigations/');
+            if (invResp.ok) {
+                const invData = await invResp.json();
+                const activeCount = invData.results ? invData.results.filter(i => i.status === 'active').length : 0;
+                const archivedCount = invData.results ? invData.results.filter(i => i.status === 'archived').length : 0;
+
+                document.getElementById('stat-active-investigations').textContent = activeCount;
+                if (document.getElementById('stat-archived')) {
+                    document.getElementById('stat-archived').textContent = archivedCount;
+                }
+            }
+        }
+
+        // Load evidence count
+        if (userProfile.can_upload_evidence || userProfile.can_view_all) {
+            const evResp = await fetch('/api/v1/blockchain/evidence/');
+            if (evResp.ok) {
+                const evData = await evResp.json();
+                const evidenceCount = evData.count || (evData.results ? evData.results.length : 0);
+                document.getElementById('stat-evidence-count').textContent = evidenceCount;
+            }
+        }
+
+        // Load transactions count
+        if (userProfile.can_view_transactions) {
+            const txResp = await fetch('/api/v1/blockchain/transactions/');
+            if (txResp.ok) {
+                const txData = await txResp.json();
+                const txCount = txData.count || (txData.results ? txData.results.length : 0);
+                document.getElementById('stat-transactions').textContent = txCount;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading statistics:', error);
+    }
+}
+
+// Render action cards based on role
+function renderActionCards() {
+    const actionCards = document.getElementById('action-cards');
+    actionCards.classList.remove('hidden');
+
+    let cardsHTML = '';
+
+    // Investigator: Create investigation, Upload evidence
+    if (userProfile.can_create_investigation) {
+        cardsHTML += `
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="card-title">Create Investigation</span>
+                    <i class="fa fa-plus-circle card-icon"></i>
+                </div>
+                <p style="color: #7f8c8d; margin-bottom: 15px;">Start a new forensic investigation with blockchain-backed chain of custody</p>
+                <button class="action-button btn-success" onclick="openModal('create-investigation-modal')">
+                    <i class="fa fa-plus"></i> New Investigation
+                </button>
+            </div>
+        `;
+    }
+
+    if (userProfile.can_upload_evidence) {
+        cardsHTML += `
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="card-title">Upload Evidence</span>
+                    <i class="fa fa-upload card-icon"></i>
+                </div>
+                <p style="color: #7f8c8d; margin-bottom: 15px;">Securely upload evidence files to IPFS and record on blockchain</p>
+                <button class="action-button btn-primary" onclick="openModal('upload-evidence-modal')">
+                    <i class="fa fa-cloud-upload"></i> Upload Evidence
+                </button>
+            </div>
+        `;
+    }
+
+    // Court: GUID Resolver, Archive operations
+    if (userProfile.can_resolve_guid) {
+        cardsHTML += `
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="card-title">GUID Resolver</span>
+                    <i class="fa fa-user-secret card-icon"></i>
+                </div>
+                <p style="color: #7f8c8d; margin-bottom: 15px;">Resolve anonymous GUIDs to user identities (audited action)</p>
+                <button class="action-button btn-danger" onclick="openModal('guid-resolver-modal')">
+                    <i class="fa fa-unlock"></i> Resolve GUID
+                </button>
+            </div>
+        `;
+    }
+
+    // Auditor: View audit logs
+    if (userProfile.role === 'auditor') {
+        cardsHTML += `
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="card-title">Audit Logs</span>
+                    <i class="fa fa-history card-icon"></i>
+                </div>
+                <p style="color: #7f8c8d; margin-bottom: 15px;">Review complete audit trail of all blockchain operations</p>
+                <button class="action-button btn-warning" onclick="viewAuditLogs()">
+                    <i class="fa fa-search"></i> View Audit Logs
+                </button>
+            </div>
+        `;
+    }
+
+    actionCards.innerHTML = cardsHTML;
+}
+
+// Load investigations
+async function loadInvestigations() {
+    try {
+        const response = await fetch('/api/v1/blockchain/investigations/');
+        if (!response.ok) throw new Error('Failed to load investigations');
+
+        const data = await response.json();
+        investigations = data.results || data;
+
+        renderInvestigationsTable();
+    } catch (error) {
+        console.error('Error loading investigations:', error);
+    }
+}
+
+// Render investigations table
+function renderInvestigationsTable() {
+    const section = document.getElementById('investigations-section');
+    const tbody = document.getElementById('investigations-tbody');
+
+    section.classList.remove('hidden');
+
+    if (investigations.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #7f8c8d;">No investigations found</td></tr>';
+        return;
+    }
+
+    let tableHTML = '';
+    investigations.slice(0, 10).forEach(inv => {
+        const statusClass = `status-${inv.status || 'active'}`;
+        const actionsHTML = renderInvestigationActions(inv);
+
+        tableHTML += `
+            <tr>
+                <td><strong>${inv.case_number}</strong></td>
+                <td>${inv.title}</td>
+                <td><span class="status-badge ${statusClass}">${(inv.status || 'active').toUpperCase()}</span></td>
+                <td>${inv.evidence_count || 0}</td>
+                <td>${new Date(inv.created_at).toLocaleString()}</td>
+                <td>${actionsHTML}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = tableHTML;
+}
+
+// Render investigation actions based on role
+function renderInvestigationActions(investigation) {
+    let actions = `<button class="action-button btn-primary" style="padding: 5px 10px; margin: 2px;" onclick="viewInvestigation('${investigation.id}')"><i class="fa fa-eye"></i> View</button>`;
+
+    if (userProfile.can_archive && investigation.status === 'active') {
+        actions += ` <button class="action-button btn-warning" style="padding: 5px 10px; margin: 2px;" onclick="archiveInvestigation('${investigation.id}')"><i class="fa fa-archive"></i> Archive</button>`;
+    }
+
+    if (userProfile.can_archive && investigation.status === 'archived') {
+        actions += ` <button class="action-button btn-success" style="padding: 5px 10px; margin: 2px;" onclick="reopenInvestigation('${investigation.id}')"><i class="fa fa-folder-open"></i> Reopen</button>`;
+    }
+
+    return actions;
+}
+
+// Load blockchain transactions
+async function loadTransactions() {
+    try {
+        const response = await fetch('/api/v1/blockchain/transactions/');
+        if (!response.ok) throw new Error('Failed to load transactions');
+
+        const data = await response.json();
+        transactions = data.results || data;
+
+        renderTransactionsTable();
+    } catch (error) {
+        console.error('Error loading transactions:', error);
+    }
+}
+
+// Render transactions table
+function renderTransactionsTable() {
+    const section = document.getElementById('transactions-section');
+    const tbody = document.getElementById('transactions-tbody');
+
+    section.classList.remove('hidden');
+
+    if (transactions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #7f8c8d;">No transactions found</td></tr>';
+        return;
+    }
+
+    let tableHTML = '';
+    transactions.slice(0, 10).forEach(tx => {
+        const chainClass = tx.chain_type === 'hot' ? 'chain-hot' : 'chain-cold';
+        const verifiedIcon = tx.verified ? '<i class="fa fa-check-circle" style="color: #2ecc71;"></i>' : '<i class="fa fa-clock-o" style="color: #f39c12;"></i>';
+
+        tableHTML += `
+            <tr>
+                <td><span class="blockchain-icon ${chainClass}"></span> ${tx.chain_type.toUpperCase()}</td>
+                <td><code style="font-size: 11px;">${tx.transaction_hash.substring(0, 16)}...</code></td>
+                <td><code style="font-size: 11px;">${tx.evidence_hash.substring(0, 16)}...</code></td>
+                <td><code style="font-size: 11px;">${tx.ipfs_cid ? tx.ipfs_cid.substring(0, 16) + '...' : 'N/A'}</code></td>
+                <td>${new Date(tx.created_at).toLocaleString()}</td>
+                <td>${verifiedIcon}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = tableHTML;
+}
+
+// Modal functions
+function openModal(modalId) {
+    document.getElementById(modalId).style.display = 'block';
+
+    // Load investigations for upload evidence modal
+    if (modalId === 'upload-evidence-modal') {
+        loadInvestigationsForSelect();
+    }
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// Load investigations for select dropdown
+async function loadInvestigationsForSelect() {
+    try {
+        const response = await fetch('/api/v1/blockchain/investigations/');
+        if (!response.ok) throw new Error('Failed to load investigations');
+
+        const data = await response.json();
+        const investigations = data.results || data;
+
+        const select = document.getElementById('investigation-select');
+        select.innerHTML = '<option value="">Select investigation...</option>';
+
+        investigations.filter(i => i.status === 'active').forEach(inv => {
+            select.innerHTML += `<option value="${inv.id}">${inv.case_number} - ${inv.title}</option>`;
+        });
+    } catch (error) {
+        console.error('Error loading investigations:', error);
+    }
+}
+
+// Form submissions
+document.getElementById('create-investigation-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = {
+        case_number: document.getElementById('case-number').value,
+        title: document.getElementById('title').value,
+        description: document.getElementById('description').value
+    };
+
+    try {
+        const response = await fetch('/api/v1/blockchain/investigations/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) throw new Error('Failed to create investigation');
+
+        alert('Investigation created successfully!');
+        closeModal('create-investigation-modal');
+        this.reset();
+        loadInvestigations();
+        loadStatistics();
+    } catch (error) {
+        console.error('Error creating investigation:', error);
+        alert('Failed to create investigation. Please try again.');
+    }
+});
+
+document.getElementById('upload-evidence-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = new FormData();
+    formData.append('investigation', document.getElementById('investigation-select').value);
+    formData.append('file', document.getElementById('evidence-file').files[0]);
+    formData.append('description', document.getElementById('evidence-description').value);
+
+    try {
+        const response = await fetch('/api/v1/blockchain/evidence/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Failed to upload evidence');
+
+        alert('Evidence uploaded successfully to blockchain!');
+        closeModal('upload-evidence-modal');
+        this.reset();
+        loadStatistics();
+    } catch (error) {
+        console.error('Error uploading evidence:', error);
+        alert('Failed to upload evidence. Please try again.');
+    }
+});
+
+document.getElementById('guid-resolver-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = {
+        guid: document.getElementById('guid').value,
+        reason: document.getElementById('reason').value
+    };
+
+    try {
+        const response = await fetch('/api/v1/blockchain/guid/resolve/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) throw new Error('Failed to resolve GUID');
+
+        const result = await response.json();
+
+        document.getElementById('guid-result').classList.remove('hidden');
+        document.getElementById('guid-result').innerHTML = `
+            <h3><i class="fa fa-user"></i> Resolved Identity</h3>
+            <p><strong>Username:</strong> ${result.username}</p>
+            <p><strong>Real Name:</strong> ${result.real_name || 'N/A'}</p>
+            <p><strong>Email:</strong> ${result.email || 'N/A'}</p>
+            <p style="color: #e74c3c; margin-top: 10px;"><i class="fa fa-exclamation-triangle"></i> This action has been logged and audited.</p>
+        `;
+    } catch (error) {
+        console.error('Error resolving GUID:', error);
+        alert('Failed to resolve GUID. Please check the GUID and try again.');
+    }
+});
+
+// Helper functions
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function viewInvestigation(id) {
+    window.location.href = `/blockchain/investigations/${id}/`;
+}
+
+async function archiveInvestigation(id) {
+    if (!confirm('Archive this investigation to cold chain storage?')) return;
+
+    try {
+        const response = await fetch(`/api/v1/blockchain/investigations/${id}/archive/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+
+        if (!response.ok) throw new Error('Failed to archive investigation');
+
+        alert('Investigation archived successfully!');
+        loadInvestigations();
+        loadStatistics();
+    } catch (error) {
+        console.error('Error archiving investigation:', error);
+        alert('Failed to archive investigation. Please try again.');
+    }
+}
+
+async function reopenInvestigation(id) {
+    if (!confirm('Reopen this investigation from cold chain?')) return;
+
+    try {
+        const response = await fetch(`/api/v1/blockchain/investigations/${id}/reopen/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+
+        if (!response.ok) throw new Error('Failed to reopen investigation');
+
+        alert('Investigation reopened successfully!');
+        loadInvestigations();
+        loadStatistics();
+    } catch (error) {
+        console.error('Error reopening investigation:', error);
+        alert('Failed to reopen investigation. Please try again.');
+    }
+}
+
+function viewAuditLogs() {
+    window.location.href = '/blockchain/audit-logs/';
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

@@ -52,6 +52,7 @@ app_view_patterns = [
     path('reports/', include('reports.urls.view_urls'), name='reports'),
     path('tickets/', include('tickets.urls.view_urls'), name='tickets'),
     path('common/', include('common.urls.view_urls'), name='common'),
+    path('blockchain/', include('blockchain.urls'), name='blockchain'),  # Blockchain views
     re_path(r'flower/(?P<path>.*)', views.celery_flower_view, name='flower-view'),
     path('download/', views.ResourceDownload.as_view(), name='download'),
     path('redirect/confirm/', views.RedirectConfirm.as_view(), name='redirect-confirm'),

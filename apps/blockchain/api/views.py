@@ -973,3 +973,75 @@ class InvestigationActivityViewSet(BlockchainRoleRequiredMixin, viewsets.ReadOnl
             'activity_id': str(activity.id),
             'viewed_by': list(activity.viewed_by.values_list('username', flat=True))
         })
+
+
+class UserBlockchainProfileViewSet(viewsets.ViewSet):
+    """
+    User Blockchain Profile API
+
+    Returns current user's blockchain role and permissions for UI rendering
+
+    Endpoints:
+        GET /api/v1/blockchain/user-profile/ - Get current user's blockchain profile
+    """
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        """
+        Get current user's blockchain role and permissions
+
+        Returns:
+            - role: User's blockchain role (investigator/auditor/court/admin/none)
+            - role_display: Human-readable role name
+            - permissions: Dict of specific permissions
+            - can_create_investigation: Boolean
+            - can_upload_evidence: Boolean
+            - can_archive: Boolean
+            - can_resolve_guid: Boolean
+            - can_view_all: Boolean
+        """
+        from rbac.models import SystemRoleBinding
+
+        user = request.user
+
+        # Get user's blockchain role
+        user_role_bindings = SystemRoleBinding.objects.filter(user=user).select_related('role')
+        user_role_ids = [str(binding.role_id) for binding in user_role_bindings]
+
+        # Determine blockchain role
+        role = 'none'
+        role_display = 'No Blockchain Access'
+
+        if '00000000-0000-0000-0000-000000000001' in user_role_ids:  # SystemAdmin
+            role = 'admin'
+            role_display = 'System Administrator'
+        elif '00000000-0000-0000-0000-00000000000A' in user_role_ids:  # BlockchainCourt
+            role = 'court'
+            role_display = 'Court Official'
+        elif '00000000-0000-0000-0000-000000000009' in user_role_ids:  # BlockchainAuditor
+            role = 'auditor'
+            role_display = 'Blockchain Auditor'
+        elif '00000000-0000-0000-0000-000000000008' in user_role_ids:  # BlockchainInvestigator
+            role = 'investigator'
+            role_display = 'Forensic Investigator'
+
+        # Check specific permissions
+        permissions = {
+            'can_create_investigation': user.has_perm('blockchain.add_investigation'),
+            'can_upload_evidence': user.has_perm('blockchain.add_evidence'),
+            'can_archive': user.has_perm('blockchain.archive_investigation'),
+            'can_resolve_guid': user.has_perm('blockchain.resolve_guid'),
+            'can_view_all': role in ['admin', 'court', 'auditor'],
+            'can_add_notes': user.has_perm('blockchain.add_investigationnote'),
+            'can_add_tags': user.has_perm('blockchain.add_tag'),
+            'can_view_transactions': user.has_perm('blockchain.view_blockchaintransaction'),
+        }
+
+        return Response({
+            'role': role,
+            'role_display': role_display,
+            'username': user.username,
+            'is_superuser': user.is_superuser,
+            'permissions': permissions,
+            **permissions  # Flatten permissions for easier access
+        })
