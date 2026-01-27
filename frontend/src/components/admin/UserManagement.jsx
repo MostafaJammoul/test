@@ -59,6 +59,8 @@ export default function UserManagement() {
     onSuccess: (response) => {
       console.log('User creation mutation successful');
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      // Also invalidate certificates since a cert is auto-generated for new users
+      queryClient.invalidateQueries({ queryKey: ['certificates'] });
       setIsCreateModalOpen(false);
       showToast(`User "${response.data.username}" created successfully!`, 'success');
     },
@@ -130,6 +132,8 @@ export default function UserManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      // Also invalidate certificates since user's certs are orphaned
+      queryClient.invalidateQueries({ queryKey: ['certificates'] });
       showToast('User deleted successfully!', 'success');
     },
     onError: (error) => {
