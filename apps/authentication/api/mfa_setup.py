@@ -69,8 +69,17 @@ class MFASetupView(APIView):
                 'configured': True
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Generate new TOTP secret
-        secret = pyotp.random_base32()
+        # Check if we already have a pending secret in session (idempotent)
+        # This prevents race conditions when frontend makes multiple concurrent requests
+        existing_secret = request.session.get('pending_mfa_secret')
+        if existing_secret:
+            secret = existing_secret
+        else:
+            # Generate new TOTP secret
+            secret = pyotp.random_base32()
+            # Store secret in session IMMEDIATELY
+            request.session['pending_mfa_secret'] = secret
+            request.session.modified = True  # Force session save
 
         # Create TOTP URI for QR code
         totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
@@ -91,8 +100,8 @@ class MFASetupView(APIView):
         buffer.seek(0)
         qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
 
-        # Store secret temporarily in session (not in DB yet)
-        request.session['pending_mfa_secret'] = secret
+        # Ensure session is saved (secret was stored earlier for idempotency)
+        request.session.modified = True
 
         return Response({
             'secret': secret,
