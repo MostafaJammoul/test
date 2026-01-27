@@ -35,6 +35,10 @@ class TokenCreateApi(AuthMixin, CreateAPIView):
             self.check_user_mfa_if_need(user)
             self.check_user_login_confirm_if_need(user)
             self.send_auth_signal(success=True, user=user)
+            # Mark this as password authentication (not mTLS)
+            # This prevents mTLS middleware from overriding with certificate auth
+            request.session['auth_method'] = 'password'
+            request.session['auth_username'] = user.username
             resp = super().create(request, *args, **kwargs)
             self.clear_auth_mark()
             return resp

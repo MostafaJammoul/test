@@ -45,10 +45,14 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
     """
 
     # URLs that allow traditional authentication (username/password)
+    # These URLs skip mTLS certificate authentication entirely
     TRADITIONAL_AUTH_URLS = [
         '/django-admin/',  # Django admin for emergency certificate management
         '/api/v1/authentication/auth/',  # Token creation endpoint
         '/api/v1/authentication/tokens/',  # Legacy token endpoint
+        '/api/v1/authentication/mfa/',  # MFA endpoints (setup, verify, status)
+        '/api/v1/users/me/',  # User profile endpoint
+        '/api/v1/users/profile/',  # User profile endpoint
     ]
 
     def process_request(self, request):
@@ -68,6 +72,11 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
                 if request.user.is_authenticated:
                     request.session['auth_method'] = 'password'
                 return None
+
+        # Skip if user already authenticated via password (admin login)
+        # This ensures admin users who logged in with password are not re-authenticated via certificate
+        if request.user.is_authenticated and request.session.get('auth_method') == 'password':
+            return None
 
         # Skip if user already authenticated via certificate
         if request.user.is_authenticated and request.session.get('auth_method') == 'certificate':
