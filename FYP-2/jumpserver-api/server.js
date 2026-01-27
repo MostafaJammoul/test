@@ -289,12 +289,11 @@ app.get('/api/evidence/:evidenceID', async (req, res) => {
     console.log(`Querying evidence ${evidenceID} for case ${caseID}...`);
 
     const resultBytes = await hotContract.evaluateTransaction('GetEvidenceSummary', caseID, evidenceID);
-    const resultString = resultBytes.toString();
 
-    // Debug: Log raw response
-    console.log('Raw chaincode response:', resultString);
-    console.log('Response length:', resultString.length);
-    console.log('First 100 chars:', resultString.substring(0, 100));
+    // Convert Uint8Array to string properly
+    const resultString = Buffer.from(resultBytes).toString('utf8');
+
+    console.log(`✓ Evidence retrieved: ${resultString.substring(0, 80)}...`);
 
     const result = JSON.parse(resultString);
 
@@ -319,7 +318,8 @@ app.get('/api/evidence/case/:caseID', async (req, res) => {
     console.log(`Querying evidence for case ${caseID}...`);
 
     const resultBytes = await hotContract.evaluateTransaction('QueryByCase', caseID);
-    const result = JSON.parse(resultBytes.toString());
+    const resultString = Buffer.from(resultBytes).toString('utf8');
+    const result = JSON.parse(resultString);
 
     res.json(result);
   } catch (error) {
