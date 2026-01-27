@@ -104,14 +104,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Get user roles (array of role IDs)
+  // Get user roles (array of role IDs, normalized to lowercase for comparison)
   const getUserRoles = () => {
     if (!user?.system_roles) return [];
-    return user.system_roles.map(r => r.id);
+    return user.system_roles.map(r => r.id?.toLowerCase());
   };
 
-  // Check if user has specific role
-  const hasRole = (roleId) => getUserRoles().includes(roleId);
+  // Check if user has specific role (case-insensitive comparison)
+  const hasRole = (roleId) => getUserRoles().includes(roleId?.toLowerCase());
 
   // Check if user has admin role
   const isAdmin = () => hasRole(ROLES.SYSTEM_ADMIN);
