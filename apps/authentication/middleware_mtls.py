@@ -65,14 +65,6 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
         3. INSERT INTO django_session (via auth_login())
         """
 
-        # Allow Django admin and auth endpoints to use traditional authentication
-        for exempt_url in self.TRADITIONAL_AUTH_URLS:
-            if request.path.startswith(exempt_url):
-                # Mark that this is traditional auth, not certificate auth
-                if request.user.is_authenticated:
-                    request.session['auth_method'] = 'password'
-                return None
-
         # Skip if user already authenticated via password (admin login)
         # This ensures admin users who logged in with password are not re-authenticated via certificate
         if request.user.is_authenticated and request.session.get('auth_method') == 'password':
@@ -87,8 +79,22 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
         cert_serial_hex = request.META.get('HTTP_X_SSL_CLIENT_SERIAL', '')
         cert_dn = request.META.get('HTTP_X_SSL_CLIENT_DN', '')
 
+        # Check if a valid certificate is being presented
+        has_valid_cert = cert_verify == 'SUCCESS' and cert_serial_hex
+
+        # For traditional auth URLs (password login flow), only skip if NO certificate is presented
+        # If a certificate IS presented, we should still authenticate via certificate
+        for exempt_url in self.TRADITIONAL_AUTH_URLS:
+            if request.path.startswith(exempt_url):
+                if not has_valid_cert:
+                    # No certificate - allow traditional auth (password login)
+                    if request.user.is_authenticated:
+                        request.session['auth_method'] = 'password'
+                    return None
+                # Certificate present - continue to authenticate via certificate below
+
         # Skip if no certificate or verification failed
-        if cert_verify != 'SUCCESS' or not cert_serial_hex:
+        if not has_valid_cert:
             logger.debug(f"No valid client certificate: verify={cert_verify}, serial={cert_serial_hex}")
             return None
 
