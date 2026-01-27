@@ -65,21 +65,30 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
         3. INSERT INTO django_session (via auth_login())
         """
 
-        # Check session directly for existing authentication
-        # We check session instead of request.user because Django's AuthenticationMiddleware
-        # may not have run yet to set request.user from the session
+        # Force evaluation of request.user (triggers Django's lazy loading)
+        # This ensures AuthenticationMiddleware has set request.user from session
+        user = getattr(request, 'user', None)
+        is_authenticated = user and getattr(user, 'is_authenticated', False) and not user.is_anonymous
+
+        # Get auth method from session
         session_auth_method = request.session.get('auth_method')
-        session_user_id = request.session.get('_auth_user_id')
 
-        # Skip if user already authenticated via password (admin login)
-        if session_user_id and session_auth_method == 'password':
-            logger.debug(f"Skipping mTLS: user already authenticated via password")
+        # Skip if user is actually authenticated via password
+        if is_authenticated and session_auth_method == 'password':
+            logger.debug(f"Skipping mTLS: user {user} already authenticated via password")
             return None
 
-        # Skip if user already authenticated via certificate
-        if session_user_id and session_auth_method == 'certificate':
-            logger.debug(f"Skipping mTLS: user already authenticated via certificate")
+        # Skip if user is actually authenticated via certificate
+        if is_authenticated and session_auth_method == 'certificate':
+            logger.debug(f"Skipping mTLS: user {user} already authenticated via certificate")
             return None
+
+        # If session says authenticated but user isn't loaded, clear stale session data
+        if not is_authenticated and request.session.get('_auth_user_id'):
+            logger.debug(f"Clearing stale session: had _auth_user_id but user not loaded")
+            # Clear stale auth data
+            for key in ['_auth_user_id', '_auth_user_backend', '_auth_user_hash', 'auth_method']:
+                request.session.pop(key, None)
 
         # Get certificate info from nginx headers
         cert_verify = request.META.get('HTTP_X_SSL_CLIENT_VERIFY', 'NONE')
