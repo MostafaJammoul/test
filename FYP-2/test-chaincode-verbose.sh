@@ -22,7 +22,8 @@ CASE_ID="diagnostic-case-001"
 EVIDENCE_ID="diagnostic-evidence-001"
 CID="QmTest123DiagnosticCID"
 HASH="deadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678"
-METADATA='{"type":"diagnostic","test":true}'
+# Escape quotes in metadata for proper JSON nesting
+METADATA='{\"type\":\"diagnostic\",\"test\":true}'
 
 echo -e "${BLUE}[1/3] Testing CreateEvidence (invoke)...${NC}"
 docker exec cli.hot peer chaincode invoke \
@@ -31,7 +32,7 @@ docker exec cli.hot peer chaincode invoke \
   -n coc \
   --tls \
   --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/hot.coc.com/orderers/orderer.hot.coc.com/msp/tlscacerts/tlsca.hot.coc.com-cert.pem \
-  -c "{\"function\":\"CreateEvidence\",\"Args\":[\"$CASE_ID\",\"$EVIDENCE_ID\",\"$CID\",\"$HASH\",\"$METADATA\"]}"
+  -c '{"function":"CreateEvidence","Args":["'"$CASE_ID"'","'"$EVIDENCE_ID"'","'"$CID"'","'"$HASH"'","{\\\"type\\\":\\\"diagnostic\\\",\\\"test\\\":true}"]}'
 
 echo ""
 echo -e "${BLUE}[2/3] Testing GetEvidenceSummary (query)...${NC}"
