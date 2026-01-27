@@ -46,7 +46,7 @@ class MTLSAuthenticationMiddleware(MiddlewareMixin):
 
     # URLs that allow traditional authentication (username/password)
     TRADITIONAL_AUTH_URLS = [
-        '/admin/',  # Django admin for certificate management
+        '/django-admin/',  # Django admin for emergency certificate management
         '/api/v1/authentication/auth/',  # Token creation endpoint
         '/api/v1/authentication/tokens/',  # Legacy token endpoint
     ]
@@ -163,9 +163,10 @@ class MFARequiredMiddleware(MiddlewareMixin):
         '/api/v1/users/me/',  # Current user profile
         '/api/v1/users/profile/',  # User profile
         '/api/health/',
-        '/admin/',  # Django admin (for emergency certificate management)
+        '/django-admin/',  # Django admin (for emergency certificate management)
         '/setup-mfa',
         '/mfa-challenge',
+        '/admin',  # React admin login page (NOT Django admin)
         '/static/',
         '/media/',
     ]

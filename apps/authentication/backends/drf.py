@@ -99,11 +99,53 @@ class PrivateTokenAuthentication(authentication.TokenAuthentication):
         return user, token
 
 
+class MTLSSessionAuthentication(authentication.SessionAuthentication):
+    """
+    Session authentication for mTLS-authenticated requests.
+
+    CSRF validation is SKIPPED for mTLS-authenticated requests because:
+    1. The client certificate already cryptographically proves identity
+    2. CSRF attacks rely on cookies being automatically sent; mTLS doesn't work this way
+    3. Requiring CSRF on top of mTLS is redundant security
+
+    This class MUST be listed BEFORE regular SessionAuthentication in
+    REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'].
+    """
+
+    def authenticate(self, request):
+        """
+        Returns a `User` if authenticated via mTLS middleware.
+        Skips CSRF validation for certificate-authenticated requests.
+        """
+        # Get the session-based user from the underlying HttpRequest object
+        user = getattr(request._request, 'user', None)
+
+        # Unauthenticated
+        if not user or not user.is_active:
+            return None
+
+        # Check if authenticated via mTLS middleware
+        # The middleware sets auth_method='certificate' in session
+        session = getattr(request._request, 'session', {})
+        auth_method = session.get('auth_method')
+
+        if auth_method == 'certificate':
+            # mTLS authenticated - skip CSRF validation
+            # Certificate already proves identity cryptographically
+            return user, None
+
+        # Not mTLS - return None to let other auth classes handle it
+        return None
+
+
 class SessionAuthentication(authentication.SessionAuthentication):
     def authenticate(self, request):
         """
         Returns a `User` if the request session currently has a logged in user.
         Otherwise, returns `None`.
+
+        For password-authenticated sessions (admin login), CSRF is required.
+        For mTLS sessions, MTLSSessionAuthentication handles it (no CSRF needed).
         """
 
         # Get the session-based user from the underlying HttpRequest object

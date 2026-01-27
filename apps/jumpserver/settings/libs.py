@@ -34,6 +34,9 @@ REST_FRAMEWORK = {
         'authentication.backends.drf.PrivateTokenAuthentication',
         'authentication.backends.drf.ServiceAuthentication',
         'authentication.backends.drf.SignatureAuthentication',
+        # MTLSSessionAuthentication MUST come before SessionAuthentication
+        # It handles mTLS-authenticated requests without CSRF validation
+        'authentication.backends.drf.MTLSSessionAuthentication',
         'authentication.backends.drf.SessionAuthentication',
     ),
     'DEFAULT_FILTER_BACKENDS': (
