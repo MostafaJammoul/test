@@ -70,19 +70,32 @@ class AccessTokenAuthentication(authentication.BaseAuthentication):
         except UnicodeError:
             msg = _('Invalid token header. Sign string should not contain invalid characters.')
             raise exceptions.AuthenticationFailed(msg)
-        user, header = self.authenticate_credentials(token)
+
+        # Try to authenticate with the token
+        # If token is invalid/expired, return None to let other auth methods try
+        # This supports the MFA flow where old tokens may be present
+        result = self.authenticate_credentials(token)
+        if result is None:
+            return None
+        user, header = result
         after_authenticate_update_date(user)
         return user, header
 
     @staticmethod
     def authenticate_credentials(token):
+        """
+        Validate the Bearer token.
+        Returns (user, None) if valid, None if invalid.
+        """
         model = get_user_model()
         user_id = cache.get(token)
         user = get_object_or_none(model, id=user_id)
 
         if not user:
-            msg = _('Invalid token or cache refreshed.')
-            raise exceptions.AuthenticationFailed(msg)
+            # Token not found or expired - return None to try other auth methods
+            # This is important for the MFA flow where old tokens may linger
+            logger.debug(f"Bearer token not found in cache, skipping")
+            return None
         return user, None
 
     def authenticate_header(self, request):
