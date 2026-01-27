@@ -270,16 +270,25 @@ app.post('/api/evidence', upload.single('file'), async (req, res) => {
 });
 
 /**
- * GET /api/evidence/:evidenceID
+ * GET /api/evidence/:evidenceID?caseID=xxx
  * Query evidence by ID
+ * Requires caseID as query parameter since chaincode uses composite keys
  */
 app.get('/api/evidence/:evidenceID', async (req, res) => {
   try {
     const { evidenceID } = req.params;
+    const { caseID } = req.query;
 
-    console.log(`Querying evidence ${evidenceID}...`);
+    if (!caseID) {
+      return res.status(400).json({
+        error: 'Missing required query parameter: caseID',
+        usage: 'GET /api/evidence/:evidenceID?caseID=xxx'
+      });
+    }
 
-    const resultBytes = await hotContract.evaluateTransaction('GetEvidenceSummary', evidenceID);
+    console.log(`Querying evidence ${evidenceID} for case ${caseID}...`);
+
+    const resultBytes = await hotContract.evaluateTransaction('GetEvidenceSummary', caseID, evidenceID);
     const result = JSON.parse(resultBytes.toString());
 
     res.json(result);

@@ -120,18 +120,19 @@ class FabricClient:
             'chain': result.get('chain', 'hot')
         }
 
-    def query_evidence(self, evidence_id):
+    def query_evidence(self, evidence_id, case_id):
         """
         Query evidence by ID from blockchain
 
         Args:
             evidence_id: Evidence identifier
+            case_id: Case identifier (required for composite key lookup)
 
         Returns:
             dict: Evidence details including CID, hash, status, owner
         """
-        logger.info(f"Querying evidence {evidence_id}")
-        return self._make_request('GET', f'/api/evidence/{evidence_id}')
+        logger.info(f"Querying evidence {evidence_id} for case {case_id}")
+        return self._make_request('GET', f'/api/evidence/{evidence_id}?caseID={case_id}')
 
     def query_case_evidence(self, case_id):
         """

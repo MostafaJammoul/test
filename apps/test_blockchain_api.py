@@ -91,13 +91,13 @@ def test_append_evidence():
         print(f"  IPFS CID: {result.get('cid')}")
         print(f"  Chain: {result.get('chain')}")
 
-        return True, evidence_id
+        return True, evidence_id, case_id
 
     except Exception as e:
         print_error(f"Failed to append evidence: {e}")
-        return False, None
+        return False, None, None
 
-def test_query_evidence(evidence_id):
+def test_query_evidence(evidence_id, case_id):
     """Test 3: Query Evidence"""
     print_header("Test 3: Query Evidence from Blockchain")
 
@@ -105,7 +105,7 @@ def test_query_evidence(evidence_id):
         client = FabricClient()
 
         print(f"  Querying evidence: {evidence_id}")
-        result = client.query_evidence(evidence_id)
+        result = client.query_evidence(evidence_id, case_id)
 
         print_success("Evidence retrieved from blockchain!")
         print(f"  Evidence ID: {result.get('evidenceID')}")
@@ -165,7 +165,7 @@ def main():
         return
 
     # Test 2: Append Evidence
-    success, evidence_id = test_append_evidence()
+    success, evidence_id, case_id = test_append_evidence()
     if not success:
         print("\n" + "=" * 60)
         print("  ✗ Evidence append failed.")
@@ -173,7 +173,7 @@ def main():
         return
 
     # Test 3: Query Evidence
-    if not test_query_evidence(evidence_id):
+    if not test_query_evidence(evidence_id, case_id):
         print("\n" + "=" * 60)
         print("  ✗ Evidence query failed.")
         print("=" * 60)
