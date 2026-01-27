@@ -10,9 +10,11 @@ from rest_framework import authentication, exceptions
 from accounts.models import IntegrationApplication
 from common.auth import signature
 from common.decorators import merge_delay_run
-from common.utils import get_object_or_none, get_request_ip_or_data, contains_ip, get_request_ip
+from common.utils import get_object_or_none, get_request_ip_or_data, contains_ip, get_request_ip, get_logger
 from users.models import User
 from ..models import AccessKey, PrivateToken
+
+logger = get_logger(__file__)
 
 
 def date_more_than(d, seconds):
@@ -120,21 +122,36 @@ class MTLSSessionAuthentication(authentication.SessionAuthentication):
         # Get the session-based user from the underlying HttpRequest object
         user = getattr(request._request, 'user', None)
 
-        # Unauthenticated
-        if not user or not user.is_active:
+        # Debug logging
+        logger.debug(f"MTLSSessionAuth: user={user}, is_authenticated={getattr(user, 'is_authenticated', False)}")
+
+        # Unauthenticated or anonymous user
+        if not user or not getattr(user, 'is_authenticated', False):
+            logger.debug("MTLSSessionAuth: No authenticated user")
+            return None
+
+        if not user.is_active:
+            logger.debug(f"MTLSSessionAuth: User {user} is not active")
             return None
 
         # Check if authenticated via mTLS middleware
         # The middleware sets auth_method='certificate' in session
-        session = getattr(request._request, 'session', {})
+        session = getattr(request._request, 'session', None)
+        if session is None:
+            logger.debug("MTLSSessionAuth: No session found")
+            return None
+
         auth_method = session.get('auth_method')
+        logger.debug(f"MTLSSessionAuth: auth_method={auth_method}, session keys={list(session.keys())}")
 
         if auth_method == 'certificate':
             # mTLS authenticated - skip CSRF validation
             # Certificate already proves identity cryptographically
+            logger.info(f"MTLSSessionAuth: Authenticated user {user.username} via certificate (CSRF skipped)")
             return user, None
 
         # Not mTLS - return None to let other auth classes handle it
+        logger.debug(f"MTLSSessionAuth: Not mTLS auth (auth_method={auth_method})")
         return None
 
 
