@@ -483,3 +483,10 @@ FABRIC_API_URL = CONFIG.get('FABRIC_API_URL', 'https://192.168.148.187:3001')
 FABRIC_CLIENT_CERT = CONFIG.get('FABRIC_CLIENT_CERT', '/etc/jumpserver/certs/jumpserver-client-cert.pem')
 FABRIC_CLIENT_KEY = CONFIG.get('FABRIC_CLIENT_KEY', '/etc/jumpserver/certs/jumpserver-client-key.pem')
 FABRIC_CA_CERT = CONFIG.get('FABRIC_CA_CERT', '/etc/jumpserver/certs/ca-cert.pem')
+
+# Blockchain Mode: Set to False to use real blockchain via REST API bridge
+# When True, uses mock clients for development/testing
+USE_MOCK_BLOCKCHAIN = CONFIG.get('BLOCKCHAIN_USE_MOCK', False)
+
+# IPFS Mode: Set to False when IPFS cluster is deployed
+USE_MOCK_IPFS = CONFIG.get('IPFS_USE_MOCK', True)

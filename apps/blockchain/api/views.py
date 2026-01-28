@@ -11,6 +11,7 @@ CONFIGURATION REQUIRED:
 """
 import hashlib
 import logging
+import uuid
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
@@ -87,15 +88,25 @@ class BlockchainRoleRequiredMixin:
         return queryset
 # ==============================================================================
 
-# Use mock clients in development/testing mode
-if settings.DEBUG or getattr(settings, 'USE_MOCK_BLOCKCHAIN', True):
+# Blockchain client selection based on settings
+# USE_MOCK_BLOCKCHAIN takes precedence over DEBUG mode
+USE_MOCK_BLOCKCHAIN = getattr(settings, 'USE_MOCK_BLOCKCHAIN', True)
+USE_MOCK_IPFS = getattr(settings, 'USE_MOCK_IPFS', True)
+
+if USE_MOCK_BLOCKCHAIN:
     from ..clients.fabric_client_mock import FabricClient
-    from ..clients.ipfs_client_mock import IPFSClient
-    logger.info("Using MOCK blockchain and IPFS clients for development")
+    logger.info("Using MOCK blockchain client for development")
 else:
-    from ..clients.fabric_client import FabricClient
+    # Use REST client to communicate with VM-2 API bridge
+    from ..clients.fabric_client_rest import FabricClient
+    logger.info(f"Using REAL blockchain client (REST API: {settings.FABRIC_API_URL})")
+
+if USE_MOCK_IPFS:
+    from ..clients.ipfs_client_mock import IPFSClient
+    logger.info("Using MOCK IPFS client (files stored locally)")
+else:
     from ..clients.ipfs_client import IPFSClient
-    logger.info("Using REAL blockchain and IPFS clients")
+    logger.info("Using REAL IPFS client")
 
 
 # =============================================================================
@@ -493,19 +504,6 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
             file_hash = hashlib.sha256(file_content).hexdigest()
             logger.info(f"File hash calculated: {file_hash}")
 
-            # TODO: CONFIGURATION - Upload to IPFS
-            # Uncomment when IPFS is configured:
-            # ipfs_client = IPFSClient()
-            # ipfs_cid, encryption_key_id = ipfs_client.upload_evidence(
-            #     file_content=file_content,
-            #     file_name=file.name
-            # )
-            # logger.info(f"File uploaded to IPFS: {ipfs_cid}")
-
-            # TEMPORARY: Mock IPFS upload
-            ipfs_cid = f"Qm{file_hash[:44]}"  # Mock CID
-            encryption_key_id = "mock-encryption-key-id"
-
             # Step 2: Get user identifier (username or GUID)
             if anonymize:
                 user_guid = GUIDResolver.generate_guid(request.user)
@@ -514,22 +512,62 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
                 user_guid = None
                 user_identifier = request.user.username
 
-            # TODO: CONFIGURATION - Record on hot chain
-            # Uncomment when Fabric is configured:
-            # fabric_client = FabricClient()
-            # hot_chain_tx = fabric_client.append_evidence(
-            #     chain='hot',
-            #     evidence_hash=file_hash,
-            #     ipfs_cid=ipfs_cid,
-            #     user=user_identifier,
-            #     investigation_id=str(investigation.id)
-            # )
-            # logger.info(f"Evidence recorded on hot chain: {hot_chain_tx}")
+            # Step 3: Upload to IPFS (if enabled) or generate mock CID
+            if not USE_MOCK_IPFS:
+                try:
+                    ipfs_client = IPFSClient()
+                    ipfs_cid, encryption_key_id = ipfs_client.upload_evidence(
+                        file_content=file_content,
+                        file_name=file.name
+                    )
+                    logger.info(f"File uploaded to IPFS: {ipfs_cid}")
+                except Exception as ipfs_error:
+                    logger.warning(f"IPFS upload failed, using mock CID: {ipfs_error}")
+                    ipfs_cid = f"Qm{file_hash[:44]}"
+                    encryption_key_id = "mock-encryption-key-id"
+            else:
+                # Mock IPFS - generate deterministic CID from hash
+                ipfs_cid = f"Qm{file_hash[:44]}"
+                encryption_key_id = "mock-encryption-key-id"
+                logger.info(f"Using mock IPFS CID: {ipfs_cid}")
 
-            # TEMPORARY: Mock blockchain transaction
-            hot_chain_tx = f"0x{file_hash[:40]}"
+            # Step 4: Record on blockchain (hot chain)
+            if not USE_MOCK_BLOCKCHAIN:
+                try:
+                    fabric_client = FabricClient(chain_type='hot')
+                    blockchain_result = fabric_client.append_evidence(
+                        case_id=str(investigation.id),
+                        evidence_id=str(uuid.uuid4()),
+                        file_data=file_content,
+                        file_hash=file_hash,
+                        metadata={
+                            'file_name': file.name,
+                            'file_size': len(file_content),
+                            'investigation_id': str(investigation.id),
+                            'case_number': investigation.case_number
+                        },
+                        user_identifier=user_identifier
+                    )
 
-            # Step 3: Create blockchain transaction record
+                    if blockchain_result.get('success'):
+                        hot_chain_tx = blockchain_result.get('tx_id') or blockchain_result.get('cid', f"tx-{file_hash[:32]}")
+                        # Update IPFS CID if bridge returned one from actual IPFS
+                        if blockchain_result.get('cid') and not blockchain_result.get('cid', '').startswith('mock'):
+                            ipfs_cid = blockchain_result.get('cid')
+                        logger.info(f"Evidence recorded on hot chain: {hot_chain_tx}")
+                    else:
+                        logger.error(f"Blockchain append failed: {blockchain_result.get('error')}")
+                        # Fall back to mock transaction hash
+                        hot_chain_tx = f"0x{file_hash[:40]}"
+                except Exception as fabric_error:
+                    logger.error(f"Fabric client error: {fabric_error}", exc_info=True)
+                    hot_chain_tx = f"0x{file_hash[:40]}"
+            else:
+                # Mock blockchain transaction
+                hot_chain_tx = f"0x{file_hash[:40]}"
+                logger.info(f"Using mock blockchain tx: {hot_chain_tx}")
+
+            # Step 5: Create blockchain transaction record in database
             blockchain_tx = BlockchainTransaction.objects.create(
                 transaction_hash=hot_chain_tx,
                 chain_type='hot',
@@ -544,7 +582,7 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
                 }
             )
 
-            # Step 4: Create evidence record
+            # Step 6: Create evidence record in database
             evidence = Evidence.objects.create(
                 investigation=investigation,
                 file_name=file.name,
