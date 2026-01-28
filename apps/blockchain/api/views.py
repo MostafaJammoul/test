@@ -170,18 +170,16 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
 
-        # Get user's roles
-        user_role_ids = list(SystemRoleBinding.objects.filter(
-            user=user
-        ).values_list('role_id', flat=True))
+        # Get user's roles (normalized to lowercase for comparison)
+        user_role_ids = [
+            str(role_id).lower() for role_id in
+            SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
+        ]
 
-        # System Admin role ID
+        # Role IDs (lowercase for comparison)
         SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
-        # Court role ID
-        COURT_ROLE = '00000000-0000-0000-0000-00000000000A'
-        # Investigator role ID
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000a'
         INVESTIGATOR_ROLE = '00000000-0000-0000-0000-000000000008'
-        # Auditor role ID
         AUDITOR_ROLE = '00000000-0000-0000-0000-000000000009'
 
         # System Admin and Court can see all investigations
@@ -387,14 +385,15 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
 
-        # Get user's roles
-        user_role_ids = list(SystemRoleBinding.objects.filter(
-            user=user
-        ).values_list('role_id', flat=True))
+        # Get user's roles (normalized to lowercase)
+        user_role_ids = [
+            str(role_id).lower() for role_id in
+            SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
+        ]
 
-        # Role IDs
+        # Role IDs (lowercase)
         SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
-        COURT_ROLE = '00000000-0000-0000-0000-00000000000A'
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000a'
         INVESTIGATOR_ROLE = '00000000-0000-0000-0000-000000000008'
         AUDITOR_ROLE = '00000000-0000-0000-0000-000000000009'
 
@@ -1026,18 +1025,18 @@ class UserBlockchainProfileViewSet(viewsets.ViewSet):
 
         user = request.user
 
-        # Get user's blockchain role
+        # Get user's blockchain role (normalized to lowercase)
         user_role_bindings = SystemRoleBinding.objects.filter(user=user).select_related('role')
-        user_role_ids = [str(binding.role_id) for binding in user_role_bindings]
+        user_role_ids = [str(binding.role_id).lower() for binding in user_role_bindings]
 
-        # Determine blockchain role
+        # Determine blockchain role (use lowercase IDs)
         role = 'none'
         role_display = 'No Blockchain Access'
 
         if '00000000-0000-0000-0000-000000000001' in user_role_ids:  # SystemAdmin
             role = 'admin'
             role_display = 'System Administrator'
-        elif '00000000-0000-0000-0000-00000000000A' in user_role_ids:  # BlockchainCourt
+        elif '00000000-0000-0000-0000-00000000000a' in user_role_ids:  # BlockchainCourt
             role = 'court'
             role_display = 'Court Official'
         elif '00000000-0000-0000-0000-000000000009' in user_role_ids:  # BlockchainAuditor
