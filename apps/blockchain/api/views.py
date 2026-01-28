@@ -466,7 +466,8 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
             )
 
         file = request.FILES['file']
-        investigation_id = request.data.get('investigation_id')
+        # Accept both 'investigation_id' and 'investigation' for compatibility
+        investigation_id = request.data.get('investigation_id') or request.data.get('investigation')
         description = request.data.get('description', '')
         anonymize = request.data.get('anonymize', 'false').lower() == 'true'
 
