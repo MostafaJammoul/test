@@ -244,7 +244,7 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         """
         Archive an investigation and move to cold chain
 
-        Permissions: blockchain.archive_investigation (Court role only)
+        Permissions: Court role only (checked via role ID)
 
         Process:
             1. Verify user has Court role
@@ -252,10 +252,21 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
             3. Archive to cold chain via ArchiveService
             4. Update investigation status to 'archived'
         """
+        from rbac.models import SystemRoleBinding
+
         investigation = self.get_object()
 
-        # Check permission
-        if not request.user.has_perm('blockchain.archive_investigation'):
+        # Check permission via role ID (Court and SystemAdmin can archive)
+        user = request.user
+        user_role_ids = [
+            str(role_id).lower() for role_id in
+            SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
+        ]
+
+        SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000a'
+
+        if SYSTEM_ADMIN_ROLE not in user_role_ids and COURT_ROLE not in user_role_ids:
             raise PermissionDenied("Only Court role can archive investigations")
 
         # Check if already archived
@@ -300,12 +311,23 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         """
         Reopen an archived investigation
 
-        Permissions: blockchain.reopen_investigation (Court role only)
+        Permissions: Court role only (checked via role ID)
         """
+        from rbac.models import SystemRoleBinding
+
         investigation = self.get_object()
 
-        # Check permission
-        if not request.user.has_perm('blockchain.reopen_investigation'):
+        # Check permission via role ID (Court and SystemAdmin can reopen)
+        user = request.user
+        user_role_ids = [
+            str(role_id).lower() for role_id in
+            SystemRoleBinding.objects.filter(user=user).values_list('role_id', flat=True)
+        ]
+
+        SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000a'
+
+        if SYSTEM_ADMIN_ROLE not in user_role_ids and COURT_ROLE not in user_role_ids:
             raise PermissionDenied("Only Court role can reopen investigations")
 
         # Check if investigation is archived
