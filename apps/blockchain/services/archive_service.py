@@ -102,8 +102,10 @@ class ArchiveService:
                 action='archive',
                 user=archived_by.username,
                 remote_addr='',
-                is_success=True,
-                detail=f'Investigation {investigation.case_number} archived. {archived_count} evidence items moved to cold chain.'
+                diff={
+                    'success': True,
+                    'detail': f'Investigation {investigation.case_number} archived. {archived_count} evidence items moved to cold chain.'
+                }
             )
 
             logger.info(
@@ -186,8 +188,10 @@ class ArchiveService:
                 action='reopen',
                 user=reopened_by.username,
                 remote_addr='',
-                is_success=True,
-                detail=f'Investigation {investigation.case_number} reopened. Reason: {reason}'
+                diff={
+                    'success': True,
+                    'detail': f'Investigation {investigation.case_number} reopened. Reason: {reason}'
+                }
             )
 
             logger.info(

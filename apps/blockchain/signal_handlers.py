@@ -25,8 +25,10 @@ def log_blockchain_transaction(sender, instance, created, **kwargs):
             action='append' if instance.chain_type == 'hot' else 'archive',
             user=user_identifier,
             remote_addr='',
-            is_success=True,
-            detail=f'{instance.chain_type.upper()} chain transaction: {instance.transaction_hash}'
+            diff={
+                'success': True,
+                'detail': f'{instance.chain_type.upper()} chain transaction: {instance.transaction_hash}'
+            }
         )
 
 
@@ -42,8 +44,10 @@ def log_evidence_upload(sender, instance, created, **kwargs):
             action='upload',
             user=user_identifier,
             remote_addr='',
-            is_success=True,
-            detail=f'Evidence uploaded: {instance.file_name} (SHA-256: {instance.file_hash_sha256[:16]}..., IPFS: {instance.ipfs_cid})'
+            diff={
+                'success': True,
+                'detail': f'Evidence uploaded: {instance.file_name} (SHA-256: {instance.file_hash_sha256[:16]}..., IPFS: {instance.ipfs_cid})'
+            }
         )
 
 
@@ -65,8 +69,10 @@ def log_investigation_status_change(sender, instance, created, **kwargs):
                     action=action,
                     user=user.username,
                     remote_addr='',
-                    is_success=True,
-                    detail=f'Investigation {instance.case_number} status changed to {instance.status}'
+                    diff={
+                        'success': True,
+                        'detail': f'Investigation {instance.case_number} status changed to {instance.status}'
+                    }
                 )
 
 

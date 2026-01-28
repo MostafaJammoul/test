@@ -84,8 +84,10 @@ class GUIDResolver:
                 action='resolve',
                 user=requester.username,
                 remote_addr='',
-                is_success=False,
-                detail=f'Unauthorized GUID resolution attempt: {guid[:16]}...'
+                diff={
+                    'success': False,
+                    'detail': f'Unauthorized GUID resolution attempt: {guid[:16]}...'
+                }
             )
 
             logger.warning(
@@ -105,8 +107,10 @@ class GUIDResolver:
                 action='resolve',
                 user=requester.username,
                 remote_addr='',
-                is_success=True,
-                detail=f'GUID {guid[:16]}... resolved to {mapping.user.username}'
+                diff={
+                    'success': True,
+                    'detail': f'GUID {guid[:16]}... resolved to {mapping.user.username}'
+                }
             )
 
             logger.info(
@@ -161,8 +165,10 @@ class GUIDResolver:
                 action='revoke',
                 user=requester.username,
                 remote_addr='',
-                is_success=True,
-                detail=f'GUID {guid[:16]}... revoked for {user.username}'
+                diff={
+                    'success': True,
+                    'detail': f'GUID {guid[:16]}... revoked for {user.username}'
+                }
             )
 
             logger.info(f"GUID revoked for user {user.username} by {requester.username}")
