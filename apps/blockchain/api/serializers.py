@@ -225,3 +225,42 @@ class InvestigationActivitySerializer(serializers.ModelSerializer):
     def get_viewed_by_usernames(self, obj):
         """Get list of usernames who have viewed this activity"""
         return list(obj.viewed_by.values_list('username', flat=True))
+
+
+class InvestigationDetailSerializer(serializers.ModelSerializer):
+    """
+    Investigation detail serializer with nested evidence, notes, transactions, activities
+    Used for retrieve (GET detail) views to provide all related data
+    """
+    created_by_display = serializers.CharField(source='created_by.username', read_only=True)
+    archived_by_display = serializers.CharField(source='archived_by.username', read_only=True, allow_null=True)
+    evidence_count = serializers.SerializerMethodField()
+    # Nested related data
+    evidence = EvidenceSerializer(many=True, read_only=True)
+    notes = InvestigationNoteSerializer(many=True, read_only=True)
+    blockchain_transactions = BlockchainTransactionSerializer(source='transactions', many=True, read_only=True)
+    activities = InvestigationActivitySerializer(many=True, read_only=True)
+    # Read-only fields for displaying assigned users
+    assigned_investigator_ids = serializers.PrimaryKeyRelatedField(
+        source='assigned_investigators', many=True, read_only=True
+    )
+    assigned_auditor_ids = serializers.PrimaryKeyRelatedField(
+        source='assigned_auditors', many=True, read_only=True
+    )
+
+    class Meta:
+        model = Investigation
+        fields = [
+            'id', 'case_number', 'title', 'description', 'status',
+            'created_by', 'created_by_display', 'created_at',
+            'archived_by', 'archived_by_display', 'archived_at',
+            'reopened_by', 'reopened_at', 'evidence_count',
+            'assigned_investigator_ids', 'assigned_auditor_ids',
+            # Nested data
+            'evidence', 'notes', 'blockchain_transactions', 'activities'
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'archived_by',
+                           'archived_at', 'reopened_by', 'reopened_at']
+
+    def get_evidence_count(self, obj):
+        return obj.evidence.count()

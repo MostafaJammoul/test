@@ -168,6 +168,13 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
     filterset_fields = ['status', 'created_by']
     ordering_fields = ['created_at', 'case_number']
 
+    def get_serializer_class(self):
+        """Use detail serializer for retrieve action to include nested data"""
+        if self.action == 'retrieve':
+            from .serializers import InvestigationDetailSerializer
+            return InvestigationDetailSerializer
+        return InvestigationSerializer
+
     def get_queryset(self):
         """
         Filter investigations based on user role and assignments
