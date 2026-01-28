@@ -569,6 +569,7 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
 
             # Step 5: Create blockchain transaction record in database
             blockchain_tx = BlockchainTransaction.objects.create(
+                investigation=investigation,
                 transaction_hash=hot_chain_tx,
                 chain_type='hot',
                 evidence_hash=file_hash,
