@@ -218,20 +218,22 @@ class FabricClient:
                 'error': str(e)
             }
 
-    def archive_evidence(self, case_id, evidence_id):
+    def archive_evidence(self, case_id, evidence_id, reason='Case archived'):
         """
         Archive evidence to cold chain
 
         Args:
             case_id: Case ID
             evidence_id: UUID of evidence
+            reason: Archive reason
 
         Returns:
             dict: Transaction result
         """
         try:
             data = {
-                'caseID': str(case_id)
+                'caseID': str(case_id),
+                'reason': reason
             }
 
             logger.info(f"Archiving evidence {evidence_id} to cold chain...")
@@ -248,6 +250,43 @@ class FabricClient:
 
         except Exception as e:
             logger.error(f"Failed to archive evidence: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def reactivate_evidence(self, case_id, evidence_id, reason):
+        """
+        Reactivate archived evidence from cold chain
+
+        Args:
+            case_id: Case ID
+            evidence_id: UUID of evidence
+            reason: Legal justification for reactivation (required)
+
+        Returns:
+            dict: Transaction result
+        """
+        try:
+            data = {
+                'caseID': str(case_id),
+                'reason': reason
+            }
+
+            logger.info(f"Reactivating evidence {evidence_id} from cold chain...")
+
+            result = self._make_request('POST', f'/api/evidence/{evidence_id}/reactivate', json=data)
+
+            logger.info(f"Evidence {evidence_id} reactivated successfully")
+
+            return {
+                'success': True,
+                'chain': 'hot',
+                'tx_id': result.get('txID')
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to reactivate evidence: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)

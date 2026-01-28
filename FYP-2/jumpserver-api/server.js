@@ -376,11 +376,12 @@ app.post('/api/evidence/:evidenceID/transfer', async (req, res) => {
  *
  * Body:
  * - caseID: string
+ * - reason: string (optional)
  */
 app.post('/api/evidence/:evidenceID/archive', async (req, res) => {
   try {
     const { evidenceID } = req.params;
-    const { caseID } = req.body;
+    const { caseID, reason } = req.body;
 
     if (!caseID) {
       return res.status(400).json({ error: 'Missing required field: caseID' });
@@ -388,7 +389,7 @@ app.post('/api/evidence/:evidenceID/archive', async (req, res) => {
 
     console.log(`Archiving evidence ${evidenceID} to cold chain...`);
 
-    await hotContract.submitTransaction('ArchiveToCold', caseID, evidenceID);
+    await hotContract.submitTransaction('ArchiveToCold', caseID, evidenceID, reason || 'Case archived');
 
     console.log(`✓ Evidence ${evidenceID} archived to cold chain`);
 
@@ -397,6 +398,42 @@ app.post('/api/evidence/:evidenceID/archive', async (req, res) => {
     console.error('Error archiving evidence:', error);
     res.status(500).json({
       error: 'Failed to archive evidence',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/evidence/:evidenceID/reactivate
+ * Reactivate archived evidence from cold chain
+ *
+ * Body:
+ * - caseID: string
+ * - reason: string (required - legal justification)
+ */
+app.post('/api/evidence/:evidenceID/reactivate', async (req, res) => {
+  try {
+    const { evidenceID } = req.params;
+    const { caseID, reason } = req.body;
+
+    if (!caseID) {
+      return res.status(400).json({ error: 'Missing required field: caseID' });
+    }
+    if (!reason) {
+      return res.status(400).json({ error: 'Missing required field: reason (legal justification required)' });
+    }
+
+    console.log(`Reactivating evidence ${evidenceID} from cold chain...`);
+
+    await hotContract.submitTransaction('ReactivateFromCold', caseID, evidenceID, reason);
+
+    console.log(`✓ Evidence ${evidenceID} reactivated from cold chain`);
+
+    res.json({ success: true, evidenceID, chain: 'hot', reason });
+  } catch (error) {
+    console.error('Error reactivating evidence:', error);
+    res.status(500).json({
+      error: 'Failed to reactivate evidence',
       message: error.message
     });
   }

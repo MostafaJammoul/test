@@ -260,15 +260,14 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def archive(self, request, pk=None):
         """
-        Archive an investigation and move to cold chain
+        Archive an investigation and move evidence to cold chain
 
         Permissions: Court role only (checked via role ID)
 
         Process:
             1. Verify user has Court role
-            2. Retrieve all evidence from hot chain
-            3. Archive to cold chain via ArchiveService
-            4. Update investigation status to 'archived'
+            2. Archive each evidence to cold chain via blockchain
+            3. Update investigation status to 'archived'
         """
         from rbac.models import SystemRoleBinding
 
@@ -295,27 +294,50 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
             )
 
         try:
-            # TODO: CONFIGURATION - Archive to cold chain
-            # Uncomment when Fabric is configured:
-            # archive_service = ArchiveService()
-            # result = archive_service.archive_investigation(
-            #     investigation=investigation,
-            #     archived_by=request.user
-            # )
+            archived_count = 0
+            archive_errors = []
 
-            # For now, just update status
+            # Archive each evidence to cold chain if blockchain is enabled
+            if not USE_MOCK_BLOCKCHAIN:
+                from .serializers import InvestigationDetailSerializer
+                fabric_client = FabricClient()
+
+                # Get all evidence for this investigation
+                evidence_list = investigation.evidence.all()
+
+                for evidence in evidence_list:
+                    result = fabric_client.archive_evidence(
+                        case_id=str(investigation.id),
+                        evidence_id=str(evidence.id),
+                        reason=f'Case {investigation.case_number} archived by {request.user.username}'
+                    )
+
+                    if result.get('success'):
+                        archived_count += 1
+                        logger.info(f"Evidence {evidence.id} archived to cold chain")
+                    else:
+                        archive_errors.append(f"Evidence {evidence.id}: {result.get('error')}")
+                        logger.warning(f"Failed to archive evidence {evidence.id}: {result.get('error')}")
+
+            # Update investigation status
             investigation.status = 'archived'
             investigation.archived_by = request.user
             investigation.archived_at = timezone.now()
             investigation.save()
 
-            logger.info(f"Investigation {investigation.case_number} archived by {request.user.username}")
+            logger.info(f"Investigation {investigation.case_number} archived by {request.user.username}. {archived_count} evidence items archived.")
 
-            return Response({
+            response_data = {
                 'status': 'success',
                 'message': f'Investigation {investigation.case_number} archived to cold chain',
-                # 'cold_chain_tx_hash': result.get('tx_hash')
-            })
+                'evidence_archived': archived_count,
+                'blockchain_enabled': not USE_MOCK_BLOCKCHAIN
+            }
+
+            if archive_errors:
+                response_data['warnings'] = archive_errors
+
+            return Response(response_data)
 
         except Exception as e:
             logger.error(f"Failed to archive investigation {investigation.case_number}: {e}")
@@ -327,9 +349,12 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def reopen(self, request, pk=None):
         """
-        Reopen an archived investigation
+        Reopen an archived investigation and reactivate evidence from cold chain
 
         Permissions: Court role only (checked via role ID)
+
+        Request body:
+            - reason: string (required) - Legal justification for reopening
         """
         from rbac.models import SystemRoleBinding
 
@@ -355,26 +380,59 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            # TODO: CONFIGURATION - Log reopen event on blockchain
-            # Uncomment when Fabric is configured:
-            # fabric_client = FabricClient()
-            # tx_hash = fabric_client.reopen_investigation(
-            #     case_number=investigation.case_number,
-            #     user=request.user.username
-            # )
+        # Require reason for reopening (legal justification)
+        reason = request.data.get('reason', '').strip()
+        if not reason:
+            return Response(
+                {'error': 'Reason is required for reopening an investigation'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        try:
+            reactivated_count = 0
+            reactivate_errors = []
+
+            # Reactivate each evidence from cold chain if blockchain is enabled
+            if not USE_MOCK_BLOCKCHAIN:
+                fabric_client = FabricClient()
+
+                # Get all evidence for this investigation
+                evidence_list = investigation.evidence.all()
+
+                for evidence in evidence_list:
+                    result = fabric_client.reactivate_evidence(
+                        case_id=str(investigation.id),
+                        evidence_id=str(evidence.id),
+                        reason=f'{reason} (by {request.user.username})'
+                    )
+
+                    if result.get('success'):
+                        reactivated_count += 1
+                        logger.info(f"Evidence {evidence.id} reactivated from cold chain")
+                    else:
+                        reactivate_errors.append(f"Evidence {evidence.id}: {result.get('error')}")
+                        logger.warning(f"Failed to reactivate evidence {evidence.id}: {result.get('error')}")
+
+            # Update investigation status
             investigation.status = 'active'
             investigation.reopened_by = request.user
             investigation.reopened_at = timezone.now()
             investigation.save()
 
-            logger.info(f"Investigation {investigation.case_number} reopened by {request.user.username}")
+            logger.info(f"Investigation {investigation.case_number} reopened by {request.user.username}. Reason: {reason}")
 
-            return Response({
+            response_data = {
                 'status': 'success',
-                'message': f'Investigation {investigation.case_number} reopened'
-            })
+                'message': f'Investigation {investigation.case_number} reopened',
+                'reason': reason,
+                'evidence_reactivated': reactivated_count,
+                'blockchain_enabled': not USE_MOCK_BLOCKCHAIN
+            }
+
+            if reactivate_errors:
+                response_data['warnings'] = reactivate_errors
+
+            return Response(response_data)
 
         except Exception as e:
             logger.error(f"Failed to reopen investigation {investigation.case_number}: {e}")
