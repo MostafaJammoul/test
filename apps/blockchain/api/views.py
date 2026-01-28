@@ -645,11 +645,24 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
             - IPFS_API_URL must be configured
             - Decryption keys must be accessible
         """
+        from rbac.models import SystemRoleBinding
+
         evidence = self.get_object()
 
-        # Check permission
-        if not request.user.has_perm('blockchain.download_evidence'):
-            raise PermissionDenied("Insufficient permissions to download evidence")
+        # Check permission - Investigator and Court can download
+        user_role_ids = [
+            str(role_id).lower() for role_id in
+            SystemRoleBinding.objects.filter(user=request.user).values_list('role_id', flat=True)
+        ]
+
+        can_download = (
+            SYSTEM_ADMIN_ROLE_ID in user_role_ids or
+            BLOCKCHAIN_INVESTIGATOR_ROLE_ID in user_role_ids or
+            BLOCKCHAIN_COURT_ROLE_ID in user_role_ids
+        )
+
+        if not can_download:
+            raise PermissionDenied("Only Investigators and Court can download evidence")
 
         try:
             # TODO: CONFIGURATION - Download from IPFS
