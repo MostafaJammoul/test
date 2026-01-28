@@ -734,7 +734,7 @@ function renderTransactionsTable() {
                 <td><code style="font-size: 11px;">${tx.transaction_hash.substring(0, 16)}...</code></td>
                 <td><code style="font-size: 11px;">${tx.evidence_hash.substring(0, 16)}...</code></td>
                 <td><code style="font-size: 11px;">${tx.ipfs_cid ? tx.ipfs_cid.substring(0, 16) + '...' : 'N/A'}</code></td>
-                <td>${new Date(tx.created_at).toLocaleString()}</td>
+                <td>${new Date(tx.timestamp).toLocaleString()}</td>
                 <td>${verifiedIcon}</td>
             </tr>
         `;

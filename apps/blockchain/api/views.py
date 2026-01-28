@@ -589,8 +589,10 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
             # Step 6: Create evidence record in database
             evidence = Evidence.objects.create(
                 investigation=investigation,
+                title=file.name,
                 file_name=file.name,
                 file_size=len(file_content),
+                mime_type=getattr(file, 'content_type', 'application/octet-stream'),
                 file_hash_sha256=file_hash,
                 ipfs_cid=ipfs_cid,
                 encryption_key_id=encryption_key_id,
@@ -611,7 +613,7 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
                 'file_hash': file_hash,
                 'ipfs_cid': ipfs_cid,
                 'hot_chain_tx_hash': hot_chain_tx,
-                'uploaded_at': evidence.created_at.isoformat()
+                'uploaded_at': evidence.uploaded_at.isoformat()
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:

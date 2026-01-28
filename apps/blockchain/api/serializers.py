@@ -93,13 +93,14 @@ class EvidenceSerializer(serializers.ModelSerializer):
         model = Evidence
         fields = [
             'id', 'investigation', 'investigation_case_number',
-            'file_name', 'file_size', 'file_hash_sha256', 'ipfs_cid',
+            'title', 'file_name', 'file_size', 'mime_type',
+            'file_hash_sha256', 'ipfs_cid',
             'description', 'uploaded_by', 'uploaded_by_display',
             'hot_chain_tx_hash', 'cold_chain_tx_hash', 'is_archived',
-            'created_at'
+            'uploaded_at'
         ]
         read_only_fields = ['id', 'file_hash_sha256', 'ipfs_cid',
-                           'uploaded_by', 'created_at']
+                           'uploaded_by', 'uploaded_at']
 
     def get_is_archived(self, obj):
         return obj.cold_chain_tx is not None
@@ -115,11 +116,11 @@ class BlockchainTransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlockchainTransaction
         fields = [
-            'id', 'transaction_hash', 'chain_type', 'evidence_hash',
+            'id', 'investigation', 'transaction_hash', 'chain_type', 'evidence_hash',
             'ipfs_cid', 'user', 'user_display', 'user_guid', 'is_anonymous',
-            'merkle_proof', 'metadata', 'created_at'
+            'verified', 'metadata', 'timestamp'
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'timestamp']
 
     def get_is_anonymous(self, obj):
         return obj.user_guid is not None
