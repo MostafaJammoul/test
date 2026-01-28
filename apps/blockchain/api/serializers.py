@@ -5,6 +5,7 @@ Blockchain API Serializers
 """
 from rest_framework import serializers
 from django.utils import timezone
+from users.models import User
 from ..models import (
     Investigation, Evidence, BlockchainTransaction, GUIDMapping,
     Tag, InvestigationTag, InvestigationNote, InvestigationActivity
@@ -18,11 +19,19 @@ class InvestigationSerializer(serializers.ModelSerializer):
     created_by_display = serializers.CharField(source='created_by.username', read_only=True)
     archived_by_display = serializers.CharField(source='archived_by.username', read_only=True)
     evidence_count = serializers.SerializerMethodField()
+    # Read-only fields for displaying assigned users
     assigned_investigator_ids = serializers.PrimaryKeyRelatedField(
         source='assigned_investigators', many=True, read_only=True
     )
     assigned_auditor_ids = serializers.PrimaryKeyRelatedField(
         source='assigned_auditors', many=True, read_only=True
+    )
+    # Writable fields for assigning users (accepts list of user IDs)
+    assigned_investigators = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), many=True, required=False, write_only=True
+    )
+    assigned_auditors = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), many=True, required=False, write_only=True
     )
 
     class Meta:
@@ -32,13 +41,42 @@ class InvestigationSerializer(serializers.ModelSerializer):
             'created_by', 'created_by_display', 'created_at',
             'archived_by', 'archived_by_display', 'archived_at',
             'reopened_by', 'reopened_at', 'evidence_count',
-            'assigned_investigator_ids', 'assigned_auditor_ids'
+            'assigned_investigator_ids', 'assigned_auditor_ids',
+            'assigned_investigators', 'assigned_auditors'
         ]
         read_only_fields = ['id', 'created_by', 'created_at', 'archived_by',
                            'archived_at', 'reopened_by', 'reopened_at']
 
     def get_evidence_count(self, obj):
         return obj.evidence.count()
+
+    def create(self, validated_data):
+        """Handle M2M fields on create"""
+        investigators = validated_data.pop('assigned_investigators', [])
+        auditors = validated_data.pop('assigned_auditors', [])
+
+        investigation = super().create(validated_data)
+
+        if investigators:
+            investigation.assigned_investigators.set(investigators)
+        if auditors:
+            investigation.assigned_auditors.set(auditors)
+
+        return investigation
+
+    def update(self, instance, validated_data):
+        """Handle M2M fields on update"""
+        investigators = validated_data.pop('assigned_investigators', None)
+        auditors = validated_data.pop('assigned_auditors', None)
+
+        instance = super().update(instance, validated_data)
+
+        if investigators is not None:
+            instance.assigned_investigators.set(investigators)
+        if auditors is not None:
+            instance.assigned_auditors.set(auditors)
+
+        return instance
 
 
 class EvidenceSerializer(serializers.ModelSerializer):

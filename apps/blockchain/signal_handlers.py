@@ -52,7 +52,9 @@ def log_investigation_status_change(sender, instance, created, **kwargs):
     """Log investigation status changes"""
     if not created:
         # Only log status changes after creation
-        if 'status' in kwargs.get('update_fields', []):
+        # Handle update_fields being None (when save() called without it)
+        update_fields = kwargs.get('update_fields') or []
+        if 'status' in update_fields:
             action = 'create' if instance.status == 'active' else 'archive'
             user = instance.archived_by if instance.status == 'archived' else instance.reopened_by
 
@@ -122,7 +124,9 @@ def track_tag_removed(sender, instance, **kwargs):
 @receiver(post_save, sender=Investigation)
 def track_investigation_status_change_activity(sender, instance, created, **kwargs):
     """Track investigation status changes as activity"""
-    if not created and 'status' in kwargs.get('update_fields', []):
+    # Handle update_fields being None (when save() called without it)
+    update_fields = kwargs.get('update_fields') or []
+    if not created and 'status' in update_fields:
         user = instance.archived_by if instance.status == 'archived' else instance.reopened_by
         action = 'archived' if instance.status == 'archived' else 'reopened'
 
