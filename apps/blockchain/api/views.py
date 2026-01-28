@@ -551,20 +551,23 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
 
                     if blockchain_result.get('success'):
                         hot_chain_tx = blockchain_result.get('tx_id') or blockchain_result.get('cid', f"tx-{file_hash[:32]}")
+                        # Ensure uniqueness for mock CIDs (they're based on file hash, not unique per upload)
+                        if hot_chain_tx.startswith('mock-'):
+                            hot_chain_tx = f"{hot_chain_tx}-{uuid.uuid4().hex[:8]}"
                         # Update IPFS CID if bridge returned one from actual IPFS
                         if blockchain_result.get('cid') and not blockchain_result.get('cid', '').startswith('mock'):
                             ipfs_cid = blockchain_result.get('cid')
                         logger.info(f"Evidence recorded on hot chain: {hot_chain_tx}")
                     else:
                         logger.error(f"Blockchain append failed: {blockchain_result.get('error')}")
-                        # Fall back to mock transaction hash
-                        hot_chain_tx = f"0x{file_hash[:40]}"
+                        # Fall back to mock transaction hash with unique suffix
+                        hot_chain_tx = f"0x{file_hash[:32]}-{uuid.uuid4().hex[:8]}"
                 except Exception as fabric_error:
                     logger.error(f"Fabric client error: {fabric_error}", exc_info=True)
-                    hot_chain_tx = f"0x{file_hash[:40]}"
+                    hot_chain_tx = f"0x{file_hash[:32]}-{uuid.uuid4().hex[:8]}"
             else:
-                # Mock blockchain transaction
-                hot_chain_tx = f"0x{file_hash[:40]}"
+                # Mock blockchain transaction with unique suffix
+                hot_chain_tx = f"0x{file_hash[:32]}-{uuid.uuid4().hex[:8]}"
                 logger.info(f"Using mock blockchain tx: {hot_chain_tx}")
 
             # Step 5: Create blockchain transaction record in database
