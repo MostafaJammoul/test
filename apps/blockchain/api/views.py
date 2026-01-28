@@ -254,8 +254,15 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         """
         investigation = self.get_object()
 
-        # Check permission
-        if not request.user.has_perm('blockchain.archive_investigation'):
+        # Check permission - use role-based check instead of has_perm
+        from rbac.models import SystemRoleBinding
+        user_role_ids = [
+            str(role_id).lower() for role_id in
+            SystemRoleBinding.objects.filter(user=request.user).values_list('role_id', flat=True)
+        ]
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000a'
+        SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
+        if COURT_ROLE not in user_role_ids and SYSTEM_ADMIN_ROLE not in user_role_ids:
             raise PermissionDenied("Only Court role can archive investigations")
 
         # Check if already archived
@@ -300,12 +307,19 @@ class InvestigationViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         """
         Reopen an archived investigation
 
-        Permissions: blockchain.reopen_investigation (Court role only)
+        Permissions: Court role only (via role-based check)
         """
         investigation = self.get_object()
 
-        # Check permission
-        if not request.user.has_perm('blockchain.reopen_investigation'):
+        # Check permission - use role-based check instead of has_perm
+        from rbac.models import SystemRoleBinding
+        user_role_ids = [
+            str(role_id).lower() for role_id in
+            SystemRoleBinding.objects.filter(user=request.user).values_list('role_id', flat=True)
+        ]
+        COURT_ROLE = '00000000-0000-0000-0000-00000000000a'
+        SYSTEM_ADMIN_ROLE = '00000000-0000-0000-0000-000000000001'
+        if COURT_ROLE not in user_role_ids and SYSTEM_ADMIN_ROLE not in user_role_ids:
             raise PermissionDenied("Only Court role can reopen investigations")
 
         # Check if investigation is archived

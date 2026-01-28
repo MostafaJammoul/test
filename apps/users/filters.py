@@ -23,6 +23,7 @@ class UserFilter(BaseFilterSet):
     is_password_expired = filters.BooleanFilter(method='filter_long_time')
     is_long_time_no_login = filters.BooleanFilter(method='filter_long_time')
     is_login_blocked = filters.BooleanFilter(method='filter_is_blocked')
+    has_blockchain_role = filters.BooleanFilter(method='filter_has_blockchain_role')
 
     class Meta:
         model = User
@@ -30,7 +31,8 @@ class UserFilter(BaseFilterSet):
             'id', 'username', 'email', 'name',
             'groups', 'group_id', 'exclude_group_id',
             'source', 'org_roles', 'system_roles',
-            'is_active', 'is_first_login', 'mfa_level'
+            'is_active', 'is_first_login', 'mfa_level',
+            'has_blockchain_role'
         )
 
     def filter_is_blocked(self, queryset, name, value):
@@ -111,3 +113,29 @@ class UserFilter(BaseFilterSet):
     def filter_org_roles(self, queryset, name, value):
         queryset = self._filter_roles(queryset=queryset, value=value, scope=Role.Scope.org.value)
         return queryset
+
+    def filter_has_blockchain_role(self, queryset, name, value):
+        """
+        Filter users that have any blockchain role assigned.
+
+        Blockchain roles (lowercase UUIDs):
+        - BlockchainInvestigator: 00000000-0000-0000-0000-000000000008
+        - BlockchainAuditor: 00000000-0000-0000-0000-000000000009
+        - BlockchainCourt: 00000000-0000-0000-0000-00000000000a
+        """
+        if not value:
+            return queryset
+
+        # Blockchain role IDs (lowercase)
+        blockchain_role_ids = [
+            '00000000-0000-0000-0000-000000000008',  # BlockchainInvestigator
+            '00000000-0000-0000-0000-000000000009',  # BlockchainAuditor
+            '00000000-0000-0000-0000-00000000000a',  # BlockchainCourt
+        ]
+
+        # Get users with any blockchain role
+        user_ids = SystemRoleBinding.objects.filter(
+            role_id__in=blockchain_role_ids
+        ).values_list('user_id', flat=True)
+
+        return queryset.filter(id__in=user_ids).distinct()

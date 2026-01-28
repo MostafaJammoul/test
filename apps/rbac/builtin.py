@@ -154,6 +154,8 @@ _blockchain_court_perms = (
     ('blockchain', 'guidmapping', 'resolve_guid', '*'),
     # Court needs to view users to assign investigators/auditors
     ('users', 'user', 'view', '*'),
+    # Court needs to view system role bindings to see user roles in the serializer
+    ('rbac', 'systemrolebinding', 'view', '*'),
     # PKI permissions
     *_blockchain_user_pki_perms,
     # Full audit log access
