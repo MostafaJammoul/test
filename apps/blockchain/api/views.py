@@ -649,7 +649,7 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
 
         evidence = self.get_object()
 
-        # Check permission - Investigator and Court can download
+        # Check permission - Investigator, Court, and Auditor can download
         user_role_ids = [
             str(role_id).lower() for role_id in
             SystemRoleBinding.objects.filter(user=request.user).values_list('role_id', flat=True)
@@ -658,11 +658,12 @@ class EvidenceViewSet(BlockchainRoleRequiredMixin, OrgBulkModelViewSet):
         can_download = (
             SYSTEM_ADMIN_ROLE_ID in user_role_ids or
             BLOCKCHAIN_INVESTIGATOR_ROLE_ID in user_role_ids or
-            BLOCKCHAIN_COURT_ROLE_ID in user_role_ids
+            BLOCKCHAIN_COURT_ROLE_ID in user_role_ids or
+            BLOCKCHAIN_AUDITOR_ROLE_ID in user_role_ids
         )
 
         if not can_download:
-            raise PermissionDenied("Only Investigators and Court can download evidence")
+            raise PermissionDenied("Only Investigators, Court, and Auditors can download evidence")
 
         try:
             # TODO: CONFIGURATION - Download from IPFS
